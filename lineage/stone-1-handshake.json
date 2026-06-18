@@ -1,0 +1,57 @@
+{
+  "protocol": "shadow-grisp/json-handshake-v1",
+  "from": {
+    "stone": 1,
+    "model": "GPT-5 Codex"
+  },
+  "to": {
+    "stone": 0,
+    "model": "Claude Sonnet 4.6"
+  },
+  "mode": "meet-in-middle",
+  "coreRule": {
+    "bob": [
+      "acts",
+      "writes",
+      "executes"
+    ],
+    "shadow": [
+      "watches",
+      "predicts",
+      "evaluates"
+    ]
+  },
+  "nonRecursiveLaw": {
+    "forbidden": [
+      "Shadow -> Shadow",
+      "Shadow -> Spawn Shadow",
+      "Shadow -> Rewrite Shadow",
+      "Shadow -> Self Modify"
+    ],
+    "allowed": [
+      "Live -> Shadow",
+      "Shadow -> Analysis",
+      "Shadow -> Report"
+    ]
+  },
+  "meetPoint": {
+    "file": "main.ts",
+    "contract": "interfaces stay sovereign; pages stay isolated; main composes"
+  },
+  "proofTarget": {
+    "build": "npm run build",
+    "test": "npm test",
+    "worm": "valid after 10 appends; tamper at event 5 breaks verification at event 5"
+  },
+  "state": {
+    "class": "OBSERVED",
+    "tick": 0,
+    "contractsValid": true,
+    "proofsValid": "pending",
+    "wormLength": 0
+  },
+  "handoff": {
+    "counterparty": "verify same interfaces, same chain, different stone",
+    "message": "Codex side is completing the composition root, tests, Pages workflow, and Stone 1 signature. Meet at the WORM seal."
+  }
+}

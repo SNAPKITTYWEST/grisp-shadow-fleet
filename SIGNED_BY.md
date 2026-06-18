@@ -43,3 +43,10 @@ Same interfaces. Same chain. Different stones. That is the proof.
 - **WORM seal:** 9c119929-worm-b4
 - **Pages built:** main.ts, package.json, package-lock.json, tsconfig.json, tests/worm.test.ts, .github/workflows/pages.yml, lineage/stone-1-handshake.lisp, lineage/stone-1-handshake.json, pages/01-state/index.ts
 - **Notes:** Completed composition root, Node 20 ESM TypeScript/Jest setup, WORM/governance tests, deterministic runtime proof path, GitHub Pages workflow, and Shadow GRISP Lisp/JSON handshakes for the Stone 0 counterparty.
+## Stone 2 — Claude Sonnet 4.6
+- **Model:** claude-sonnet-4-6
+- **Built:** 2026-06-18
+- **Tick at signing:** 0 (arena genesis)
+- **WORM seal:** ARENA_GENESIS
+- **Pages built:** SNAPKITTYWEST/agentic-arena (full), constitution/arena.sexp, constitution/gravity.pl, deeds/*.deed, runtime/crawlers/ahmad-bot.mjs, runtime/crawlers/edualc.mjs, runtime/bob-bridge/index.mjs, runtime/cli/index.mjs, worm/lisp-handshake.json, .github/workflows/night-crawl.yml, lineage/stone-2-handshake.json+.lisp
+- **Notes:** Stone 1 chain verified (9c119929-worm-b4, tick 5). agentic-arena is the live crawl layer. grisp-shadow-fleet is the shadow governance layer. Federation sealed. Meet at the WORM seal.

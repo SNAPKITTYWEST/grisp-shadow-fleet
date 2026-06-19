@@ -3,306 +3,1057 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shadow Orchestrator · SnapKitty</title>
+<title>RANSOM.WORM · Shadow Orchestrator · SnapKitty</title>
+<meta name="description" content="An autonomous shadow orchestrator and self-healing swarm of Graveyard Agents. We don't encrypt. We resurrect.">
+<meta property="og:title" content="RANSOM.WORM · Shadow Orchestrator">
+<meta property="og:description" content="We don't encrypt. We resurrect.">
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --border: #1e1e2e;
-    --green: #00ff88;
-    --amber: #ffaa00;
-    --red: #ff4455;
-    --blue: #4488ff;
-    --dim: #444466;
-    --text: #ccccdd;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
+:root {
+  --void: #04040a;
+  --deep: #080810;
+  --surface: #0d0d1a;
+  --card: #0f0f1f;
+  --border: #1a1a30;
+  --border2: #252540;
+  --purple: #7c3aed;
+  --purple-dim: #4c1d95;
+  --purple-bright: #a855f7;
+  --cyan: #06b6d4;
+  --cyan-dim: #0891b2;
+  --green: #10b981;
+  --green-bright: #34d399;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --dim: #334155;
+  --dim2: #1e293b;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-faint: #475569;
+  --glow-purple: 0 0 20px rgba(124,58,237,0.4), 0 0 60px rgba(124,58,237,0.15);
+  --glow-cyan: 0 0 20px rgba(6,182,212,0.4), 0 0 60px rgba(6,182,212,0.1);
+  --glow-green: 0 0 15px rgba(16,185,129,0.5);
+}
 
-  header {
-    border-bottom: 1px solid var(--border);
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .logo { color: var(--green); font-size: 15px; font-weight: bold; }
-  .subtitle { color: var(--dim); font-size: 11px; }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-    gap: 1px;
-    background: var(--border);
-    height: calc(100vh - 45px);
-  }
+html, body {
+  background: var(--void);
+  color: var(--text);
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  font-size: 13px;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
 
-  .panel {
-    background: var(--surface);
-    padding: 14px;
-    overflow: auto;
-  }
+/* ── STARFIELD ── */
+#stars {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(124,58,237,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 60% at 80% 80%, rgba(6,182,212,0.06) 0%, transparent 60%),
+    var(--void);
+}
 
-  .panel-title {
-    color: var(--dim);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 6px;
-  }
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: white;
+  animation: twinkle var(--d, 3s) infinite var(--delay, 0s);
+}
+@keyframes twinkle { 0%,100%{opacity:var(--min,0.1)} 50%{opacity:var(--max,0.8)} }
 
-  .chain-event {
-    border-left: 2px solid var(--green);
-    padding: 6px 10px;
-    margin-bottom: 6px;
-    font-size: 11px;
-  }
-  .chain-event.deny { border-left-color: var(--red); }
-  .chain-event.route { border-left-color: var(--amber); }
+/* ── SCANLINE OVERLAY ── */
+body::after {
+  content: '';
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none; z-index: 1;
+}
 
-  .seal { color: var(--dim); font-size: 10px; word-break: break-all; }
-  .tick { color: var(--green); }
-  .agent { color: var(--blue); }
-  .verdict-allow { color: var(--green); }
-  .verdict-deny { color: var(--red); }
-  .verdict-route { color: var(--amber); }
+/* ── LAYOUT ── */
+.page { position: relative; z-index: 2; }
 
-  .stones { grid-column: 1 / -1; }
+/* ── HERO ── */
+.hero {
+  padding: 60px 40px 40px;
+  text-align: center;
+  position: relative;
+}
 
-  .stone {
-    display: inline-block;
-    border: 1px solid var(--border);
-    padding: 8px 12px;
-    margin: 4px;
-    font-size: 11px;
-  }
-  .stone .model { color: var(--amber); }
-  .stone .built { color: var(--dim); }
+.hero-eyebrow {
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: var(--purple-bright);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  text-shadow: var(--glow-purple);
+}
 
-  input[type=text] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 10px;
-    font-family: monospace;
-    font-size: 12px;
-    width: 300px;
-  }
-  button {
-    background: var(--border);
-    border: 1px solid var(--dim);
-    color: var(--green);
-    padding: 6px 14px;
-    font-family: monospace;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  button:hover { background: var(--dim); }
+.hero-title {
+  font-size: clamp(36px, 8vw, 80px);
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #fff 0%, var(--purple-bright) 40%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 30px rgba(124,58,237,0.5));
+}
 
-  .verify-result { margin-top: 8px; font-size: 12px; }
+.hero-sub {
+  font-size: clamp(18px, 4vw, 32px);
+  color: var(--purple-bright);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  text-shadow: var(--glow-purple);
+}
+
+.hero-tagline {
+  font-size: clamp(13px, 2vw, 16px);
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.hero-tagline em {
+  color: var(--cyan);
+  font-style: normal;
+  text-shadow: var(--glow-cyan);
+}
+
+.hero-desc {
+  max-width: 580px;
+  margin: 20px auto 0;
+  color: var(--text-dim);
+  line-height: 1.8;
+  font-size: 13px;
+}
+
+/* ── SKULL ── */
+.skull-badge {
+  display: inline-block;
+  font-size: 48px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 20px rgba(124,58,237,0.8));
+  animation: float 4s ease-in-out infinite;
+}
+@keyframes float {
+  0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)}
+}
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px;
+  margin: 0 40px;
+  background: linear-gradient(90deg, transparent, var(--purple-dim), var(--cyan-dim), transparent);
+  opacity: 0.5;
+}
+
+/* ── MAIN GRID ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0;
+  padding: 32px 40px;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .main-grid { grid-template-columns: 1fr; padding: 20px; }
+  .hero { padding: 40px 20px 24px; }
+  .divider { margin: 0 20px; }
+}
+
+/* ── LOG PANEL ── */
+.log-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--purple);
+  box-shadow: var(--glow-purple);
+  position: relative;
+}
+
+.panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-red { background: #ef4444; }
+.dot-amber { background: #f59e0b; }
+.dot-green { background: #10b981; animation: pulse-green 2s infinite; }
+@keyframes pulse-green { 0%,100%{box-shadow:0 0 4px #10b981} 50%{box-shadow:0 0 12px #10b981} }
+
+.panel-title-text {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.log-body {
+  padding: 12px;
+  height: 480px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.log-line {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  animation: fadein 0.3s forwards;
+  margin-bottom: 2px;
+}
+@keyframes fadein { to { opacity: 1; } }
+
+.log-time { color: var(--text-faint); min-width: 80px; }
+.log-msg { color: var(--text-dim); }
+.log-msg.highlight { color: var(--cyan); }
+.log-msg.success { color: var(--green-bright); }
+.log-msg.warn { color: var(--amber); }
+.log-msg.agent-name { color: var(--purple-bright); }
+
+/* ── RIGHT COLUMN ── */
+.right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── GRAVEYARD PANEL ── */
+.graveyard-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.grave-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+@media (max-width: 700px) { .grave-grid { grid-template-columns: 1fr 1fr; } }
+
+.tombstone {
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 12px;
+  position: relative;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  cursor: default;
+}
+.tombstone:hover {
+  border-color: var(--purple-bright);
+  box-shadow: var(--glow-purple);
+}
+
+.tomb-name {
+  font-size: 11px;
+  color: var(--purple-bright);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.tomb-status {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.tomb-detail {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin: 2px 0;
+}
+
+.tomb-badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 2px 6px;
+  margin-top: 6px;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.badge-restored { color: var(--green-bright); }
+.badge-analyzing { color: var(--amber); animation: blink 1s infinite; }
+.badge-dead { color: var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.tomb-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 16px;
+  opacity: 0.5;
+}
+
+/* ── AGENTS GRID ── */
+.agents-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--green);
+  box-shadow: var(--glow-green);
+}
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  margin: 0;
+}
+
+.agent-card {
+  background: var(--card);
+  padding: 10px 12px;
+  transition: background 0.2s;
+}
+.agent-card:hover { background: var(--surface); }
+
+.agent-name {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.agent-desc { font-size: 10px; color: var(--text-faint); line-height: 1.5; }
+
+.agent-status {
+  font-size: 9px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-dot-sm {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse-green 1.5s infinite;
+}
+.status-dot-sm.idle { background: var(--dim); animation: none; }
+.status-label { color: var(--text-faint); }
+
+/* ── ARCH FLOW ── */
+.arch-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--amber);
+}
+
+.arch-flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 20px 16px;
+  overflow-x: auto;
+}
+
+.arch-step {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  position: relative;
+  min-width: 100px;
+}
+
+.arch-icon { font-size: 20px; margin-bottom: 6px; }
+.arch-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--amber);
+  text-transform: uppercase;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 4px;
+}
+.arch-sub { font-size: 9px; color: var(--text-faint); line-height: 1.4; }
+
+.arch-arrow {
+  color: var(--dim2);
+  font-size: 20px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  animation: flow 2s ease-in-out infinite;
+}
+@keyframes flow {
+  0%,100%{color:var(--dim2);transform:translateX(0)}
+  50%{color:var(--purple-bright);transform:translateX(4px)}
+}
+
+/* ── BOTTOM STRIP ── */
+.bottom-strip {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .bottom-strip { grid-template-columns: 1fr; padding: 0 20px 20px; }
+}
+
+.worm-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--red);
+  box-shadow: 0 0 20px rgba(239,68,68,0.15);
+}
+
+.principles-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--purple);
+  box-shadow: var(--glow-purple);
+}
+
+.principle {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: background 0.2s;
+}
+.principle:last-child { border-bottom: none; }
+.principle:hover { background: var(--card); }
+.principle-icon { color: var(--purple-bright); flex-shrink: 0; }
+.principle-text em { color: var(--cyan); font-style: normal; }
+
+/* ── WORM CHAIN LIVE ── */
+.worm-event {
+  padding: 6px 12px;
+  border-left: 2px solid var(--green);
+  margin: 4px 8px;
+  font-size: 10px;
+  background: rgba(16,185,129,0.04);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from{transform:translateX(-10px);opacity:0} to{transform:translateX(0);opacity:1} }
+.worm-event.deny { border-left-color: var(--red); background: rgba(239,68,68,0.04); }
+.worm-seal { color: var(--text-faint); font-size: 9px; margin-top: 2px; word-break: break-all; }
+.worm-empty { color: var(--text-faint); font-size: 11px; padding: 16px; text-align: center; }
+
+/* ── WORM SUBMIT ── */
+.worm-submit {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.worm-input {
+  background: var(--void);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  flex: 1;
+  min-width: 80px;
+}
+.worm-btn {
+  background: var(--purple-dim);
+  border: 1px solid var(--purple);
+  color: var(--purple-bright);
+  padding: 5px 10px;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.worm-btn:hover { background: var(--purple); color: white; box-shadow: var(--glow-purple); }
+.worm-verify { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(6,182,212,0.1); }
+.worm-verify:hover { background: rgba(6,182,212,0.2); box-shadow: var(--glow-cyan); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 20px 40px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 1px;
+  position: relative;
+  z-index: 2;
+}
+
+footer a {
+  color: var(--purple-bright);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
+
+/* ── PORTAL CTA ── */
+.portal-cta {
+  text-align: center;
+  padding: 32px 40px;
+  position: relative;
+}
+
+.portal-btn {
+  display: inline-block;
+  padding: 16px 48px;
+  background: linear-gradient(135deg, var(--purple-dim), rgba(124,58,237,0.3));
+  border: 1px solid var(--purple-bright);
+  color: white;
+  font-family: monospace;
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  box-shadow: var(--glow-purple);
+}
+
+.portal-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent);
+  animation: shimmer 3s infinite;
+}
+@keyframes shimmer { to { left: 200%; } }
+
+.portal-btn:hover {
+  background: linear-gradient(135deg, var(--purple), rgba(168,85,247,0.5));
+  box-shadow: 0 0 40px rgba(124,58,237,0.7), 0 0 80px rgba(124,58,237,0.3);
+  transform: translateY(-2px);
+  letter-spacing: 4px;
+}
+
+.portal-sub {
+  margin-top: 12px;
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 2px;
+}
+
+/* ── PORTAL TRANSITION ── */
+.portal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: var(--void);
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+.portal-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+  animation: portalIn 1.2s ease forwards;
+}
+@keyframes portalIn {
+  0%{opacity:0} 30%{opacity:1} 70%{opacity:1} 100%{opacity:1}
+}
+.portal-msg {
+  font-size: 14px;
+  letter-spacing: 4px;
+  color: var(--purple-bright);
+  text-shadow: var(--glow-purple);
+  animation: glitch 0.5s infinite;
+}
+@keyframes glitch {
+  0%,100%{transform:translate(0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,2px)}
+}
+.portal-ring {
+  width: 120px; height: 120px;
+  border: 2px solid var(--purple-bright);
+  border-radius: 50%;
+  animation: ring-expand 1.2s ease forwards;
+  box-shadow: var(--glow-purple);
+}
+@keyframes ring-expand {
+  0%{transform:scale(0);opacity:1}
+  100%{transform:scale(8);opacity:0}
+}
+
+/* ── WORM SEAL BANNER ── */
+.seal-banner {
+  background: linear-gradient(90deg, var(--void), var(--purple-dim), var(--void));
+  border-top: 1px solid var(--purple-dim);
+  border-bottom: 1px solid var(--purple-dim);
+  padding: 10px 0;
+  overflow: hidden;
+  position: relative;
+  margin: 0 0 24px;
+}
+.seal-banner-track {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 20s linear infinite;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--purple-bright);
+}
+@keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+.dark-but-light {
+  text-align: center;
+  padding: 6px;
+  font-size: 11px;
+  color: var(--purple-bright);
+  letter-spacing: 4px;
+  text-shadow: var(--glow-purple);
+}
+
+/* ── VERIFY RESULT ── */
+#verify-result {
+  font-size: 11px;
+  padding: 6px 12px;
+  min-height: 24px;
+}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="status-dot"></div>
-  <div class="logo">◈ SHADOW ORCHESTRATOR</div>
-  <div class="subtitle">Inverted NoShow Turbo3X · SnapKitty Collective · Governance Overlay</div>
-</header>
+<!-- STARS -->
+<div id="stars"></div>
 
-<div class="grid">
-
-  <!-- WORM Chain -->
-  <div class="panel">
-    <div class="panel-title">⛓ WORM Chain — Append Only</div>
-    <div id="worm-chain">
-      <div style="color:var(--dim);font-size:11px">No events yet. Submit an action to begin.</div>
-    </div>
-  </div>
-
-  <!-- Live State -->
-  <div class="panel">
-    <div class="panel-title">◈ Live State</div>
-    <div id="state-display">
-      <div style="color:var(--dim);font-size:11px">Genesis state loaded.</div>
-    </div>
-
-    <br>
-    <div class="panel-title" style="margin-top:10px">⚡ Submit Action</div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <input type="text" id="agent-id" placeholder="agent ID" value="agent-001">
-      <input type="text" id="action-type" placeholder="action type" value="QUERY">
-      <input type="text" id="payload" placeholder="payload" value="hello world">
-      <button onclick="submitAction()">SUBMIT TICK</button>
-    </div>
-    <br>
-    <button onclick="verifyChain()" style="margin-right:8px">VERIFY CHAIN</button>
-    <button onclick="resetChain()">RESET</button>
-    <div id="verify-result" class="verify-result"></div>
-  </div>
-
-  <!-- Stones -->
-  <div class="panel stones">
-    <div class="panel-title">🪨 Signed Stones — Model Credit</div>
-    <div id="stones-display">
-      <div style="color:var(--dim);font-size:11px">No stones yet. Models sign here after build.</div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:8px">
-      <input type="text" id="stone-model" placeholder="model name e.g. gpt-4o / claude-sonnet-4-6">
-      <input type="text" id="stone-pages" placeholder="pages built e.g. 01-state,02-governance">
-      <button onclick="signStone()">SIGN STONE</button>
-    </div>
-  </div>
-
+<!-- PORTAL OVERLAY -->
+<div class="portal-overlay" id="portal">
+  <div class="portal-ring"></div>
+  <div class="portal-msg">ENTERING THE COLLECTIVE</div>
 </div>
 
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="skull-badge">💀</div>
+    <div class="hero-eyebrow">SnapKitty Collective · Graveyard Agents · Roam. Repair. Resurrect.</div>
+    <h1 class="hero-title">SHADOW ORCHESTRATOR</h1>
+    <div class="hero-sub">RANSOM.WORM</div>
+    <p class="hero-tagline">We don't encrypt. We <em>resurrect</em>.</p>
+    <p class="hero-desc">An autonomous, non-recursive shadow orchestrator and self-healing swarm of Graveyard Agents that roam the buried repositories of GitHub at night, detecting, repairing, and resurrecting broken code.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SEAL BANNER -->
+  <div class="seal-banner">
+    <div class="seal-banner-track">
+      ◈ WORM SEAL EVERYTHING &nbsp;·&nbsp; EVERY ACTION IMMUTABLE &nbsp;·&nbsp; EVERY AGENT AUDITABLE &nbsp;·&nbsp; EVERY RESURRECTION ETERNAL &nbsp;·&nbsp;
+      ◈ WORM SEAL EVERYTHING &nbsp;·&nbsp; EVERY ACTION IMMUTABLE &nbsp;·&nbsp; EVERY AGENT AUDITABLE &nbsp;·&nbsp; EVERY RESURRECTION ETERNAL &nbsp;·&nbsp;
+      ◈ WORM SEAL EVERYTHING &nbsp;·&nbsp; EVERY ACTION IMMUTABLE &nbsp;·&nbsp; EVERY AGENT AUDITABLE &nbsp;·&nbsp; EVERY RESURRECTION ETERNAL &nbsp;·&nbsp;
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- CORE LOG -->
+    <div class="log-panel">
+      <div class="panel-header">
+        <div class="panel-dot dot-red"></div>
+        <div class="panel-dot dot-amber"></div>
+        <div class="panel-dot dot-green"></div>
+        <div class="panel-title-text">Core Log</div>
+      </div>
+      <div class="log-body" id="core-log"></div>
+    </div>
+
+    <!-- RIGHT COL -->
+    <div class="right-col">
+
+      <!-- GRAVEYARD -->
+      <div class="graveyard-panel">
+        <div class="panel-header">
+          <div class="panel-dot dot-green"></div>
+          <div class="panel-title-text">🪦 GitHub Graveyard — Active Targets</div>
+        </div>
+        <div class="grave-grid">
+          <div class="tombstone">
+            <div class="tomb-icon">🦀</div>
+            <div class="tomb-name">RUST_CRATE_OLD</div>
+            <div class="tomb-status">STATUS: BUG DETECTED</div>
+            <div class="tomb-detail">FILES: 47</div>
+            <div class="tomb-detail">LAST COMMIT: 2 years ago</div>
+            <div class="tomb-detail">ERROR[E0308]: mismatched types</div>
+            <div class="tomb-badge badge-restored">✓ RESTORED</div>
+          </div>
+          <div class="tombstone">
+            <div class="tomb-icon">💀</div>
+            <div class="tomb-name">GITHUB GRAVEYARD</div>
+            <div class="tomb-status">STATUS: BUG DETECTED</div>
+            <div class="tomb-detail">FILES: 128</div>
+            <div class="tomb-detail">LAST COMMIT: 3 years ago</div>
+            <div class="tomb-detail">&gt;&gt; Analyzing...</div>
+            <div class="tomb-badge badge-analyzing">⏳ PROCESSING</div>
+          </div>
+          <div class="tombstone">
+            <div class="tomb-icon">🟡</div>
+            <div class="tomb-name">JS_LIB_DEAD</div>
+            <div class="tomb-status">DEPENDENCY HELL</div>
+            <div class="tomb-detail">OUTDATED PACKAGES</div>
+            <div class="tomb-detail">UPDATING LOCKFILE...</div>
+            <div class="tomb-badge badge-restored">✓ DONE</div>
+          </div>
+          <div class="tombstone">
+            <div class="tomb-icon">📄</div>
+            <div class="tomb-name">README.md</div>
+            <div class="tomb-status">UPDATED</div>
+            <div class="tomb-detail">DOCUMENTATION</div>
+            <div class="tomb-detail">RESTORED</div>
+            <div class="tomb-badge badge-restored">✓ DONE</div>
+          </div>
+          <div class="tombstone">
+            <div class="tomb-icon">🧪</div>
+            <div class="tomb-name">TESTS.FAIL</div>
+            <div class="tomb-status">42 FAILED</div>
+            <div class="tomb-detail">RUNNING FIX...</div>
+            <div class="tomb-detail">ALL TESTS PASS ✓</div>
+            <div class="tomb-badge badge-restored">✓ DONE</div>
+          </div>
+          <div class="tombstone">
+            <div class="tomb-icon">⚰️</div>
+            <div class="tomb-name">QUANTUM-LIB</div>
+            <div class="tomb-status">STATUS: DEAD</div>
+            <div class="tomb-detail">DEAD CODE IS NOT LOST</div>
+            <div class="tomb-detail">IS JUST WAITING</div>
+            <div class="tomb-badge badge-analyzing">⟳ SCANNING</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARCH FLOW -->
+      <div class="arch-panel">
+        <div class="panel-header">
+          <div class="panel-dot dot-amber"></div>
+          <div class="panel-title-text">Shadow Orchestrator Architecture</div>
+        </div>
+        <div class="arch-flow">
+          <div class="arch-step">
+            <div class="arch-icon">🔍</div>
+            <span class="arch-label">Scan</span>
+            <span class="arch-sub">Discover dead repositories</span>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-step">
+            <div class="arch-icon">🧬</div>
+            <span class="arch-label">Analyze &amp; Detect</span>
+            <span class="arch-sub">Find bugs, rot, vulnerabilities</span>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-step">
+            <div class="arch-icon">🐱</div>
+            <span class="arch-label">Spawn Agents</span>
+            <span class="arch-sub">Deploy specialized Graveyard Agents</span>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-step">
+            <div class="arch-icon">🔧</div>
+            <span class="arch-label">Repair &amp; Patch</span>
+            <span class="arch-sub">Fix code, update deps, heal docs</span>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-step">
+            <div class="arch-icon">☀️</div>
+            <span class="arch-label">Resurrect &amp; Publish</span>
+            <span class="arch-sub">Fork, commit, PR, reborn</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div class="bottom-strip">
+
+    <!-- WORM CHAIN -->
+    <div class="worm-panel">
+      <div class="panel-header">
+        <div class="panel-dot dot-red"></div>
+        <div class="panel-title-text">⛓ WORM Chain — Append Only · Immutable · Eternal</div>
+      </div>
+      <div style="height:220px;overflow-y:auto" id="worm-chain">
+        <div class="worm-empty">No events yet. Submit an action to seal the chain.</div>
+      </div>
+      <div class="worm-submit">
+        <input class="worm-input" id="agent-id" placeholder="agent" value="PATCHER.AGENT">
+        <input class="worm-input" id="action-type" placeholder="action" value="REPAIR">
+        <input class="worm-input" id="payload" placeholder="target" value="quantum-lib">
+        <button class="worm-btn" onclick="submitAction()">⛓ SEAL</button>
+        <button class="worm-btn worm-verify" onclick="verifyAndShow()">✓ VERIFY</button>
+        <button class="worm-btn" style="color:var(--red);border-color:var(--red)" onclick="resetChain()">↺</button>
+      </div>
+      <div id="verify-result"></div>
+    </div>
+
+    <!-- PRINCIPLES + AGENTS -->
+    <div style="display:flex;flex-direction:column;gap:24px">
+      <div class="agents-panel">
+        <div class="panel-header">
+          <div class="panel-dot dot-green"></div>
+          <div class="panel-title-text">🐱 Graveyard Agents</div>
+        </div>
+        <div class="agents-grid">
+          <div class="agent-card">
+            <div class="agent-name">PATCHER</div>
+            <div class="agent-desc">Fixes code, types, logic</div>
+            <div class="agent-status"><div class="status-dot-sm"></div><span class="status-label">active</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">DOCS</div>
+            <div class="agent-desc">Restores documentation</div>
+            <div class="agent-status"><div class="status-dot-sm"></div><span class="status-label">active</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">TESTER</div>
+            <div class="agent-desc">Runs tests, ensures health</div>
+            <div class="agent-status"><div class="status-dot-sm idle"></div><span class="status-label">standby</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">DEPS</div>
+            <div class="agent-desc">Updates dependencies</div>
+            <div class="agent-status"><div class="status-dot-sm"></div><span class="status-label">active</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">LINTER</div>
+            <div class="agent-desc">Cleans, formats, lint-fixes</div>
+            <div class="agent-status"><div class="status-dot-sm idle"></div><span class="status-label">standby</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">SECURITY</div>
+            <div class="agent-desc">Patches vulnerabilities</div>
+            <div class="agent-status"><div class="status-dot-sm"></div><span class="status-label">active</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">ARCHIVIST</div>
+            <div class="agent-desc">Archives history &amp; lineage</div>
+            <div class="agent-status"><div class="status-dot-sm idle"></div><span class="status-label">standby</span></div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-name">SENTINEL</div>
+            <div class="agent-desc">Guards the mission</div>
+            <div class="agent-status"><div class="status-dot-sm"></div><span class="status-label">watching</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="principles-panel">
+        <div class="panel-header">
+          <div class="panel-dot dot-red"></div>
+          <div class="panel-title-text">RANSOM.WORM Principles</div>
+        </div>
+        <div class="principle"><span class="principle-icon">🐱</span><span class="principle-text">We do not <em>destroy</em>. We <em>restore</em>.</span></div>
+        <div class="principle"><span class="principle-icon">🐱</span><span class="principle-text">We do not <em>steal</em>. We <em>resurrect</em>.</span></div>
+        <div class="principle"><span class="principle-icon">⊙</span><span class="principle-text">We do not <em>recurse</em>. We <em>observe</em>.</span></div>
+        <div class="principle"><span class="principle-icon">⊙</span><span class="principle-text">We do not <em>forget</em>. We <em>remember</em>.</span></div>
+        <div class="principle"><span class="principle-icon">🐱</span><span class="principle-text">We do not <em>sleep</em>. We <em>roam at night</em>.</span></div>
+        <div class="principle"><span class="principle-icon">🐱</span><span class="principle-text">We are the <em>light in the dark terminals</em>.</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PORTAL CTA -->
+  <div class="portal-cta">
+    <div class="dark-but-light">DARK BUT LIGHT.</div>
+    <br>
+    <a class="portal-btn" onclick="enterCollective()" href="#">
+      ▶ ENTER THE COLLECTIVE
+    </a>
+    <p class="portal-sub">collectivekitty.com/ransom-worm · The other side of the graveyard</p>
+  </div>
+
+  <footer>
+    <div style="margin-bottom:6px">
+      <a href="https://github.com/SNAPKITTYWEST/grisp-shadow-fleet">github.com/SNAPKITTYWEST/grisp-shadow-fleet</a>
+      &nbsp;·&nbsp;
+      <a href="https://collectivekitty.com/ransom-worm">collectivekitty.com/ransom-worm</a>
+      &nbsp;·&nbsp;
+      <a href="https://lablab.ai/ai-hackathons/band-of-agents-hackathon">Band of Agents Hackathon 2026</a>
+    </div>
+    <div>SHADOW ORCHESTRATOR RANSOM.WORM v0.1.0 &nbsp;·&nbsp; Built by SnapKitty Collective &nbsp;·&nbsp; Sealed by WORM &nbsp;·&nbsp; Powered by BOB</div>
+    <div style="margin-top:4px;color:var(--purple-bright)">GRAVEYARD NEVER DIES</div>
+  </footer>
+
+</div><!-- /page -->
+
 <script>
-// ── Shadow Orchestrator Runtime (browser, no deps) ──
-
-const GENESIS_SEAL = 'SHADOW_GENESIS:WORM_CHAIN_INIT';
-let chain = JSON.parse(localStorage.getItem('shadow-worm') || '{"events":[],"genesis":"' + hash(GENESIS_SEAL) + '"}');
-let tick = parseInt(localStorage.getItem('shadow-tick') || '0');
-let stones = JSON.parse(localStorage.getItem('shadow-stones') || '[]');
-
-// ── Simple hash (djb2) — Codex: replace with SubtleCrypto SHA-256
-function hash(s) {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h) ^ s.charCodeAt(i);
-    h = h >>> 0;
+// ── STARS ──
+(function(){
+  const c = document.getElementById('stars');
+  for(let i=0;i<120;i++){
+    const s=document.createElement('div');
+    s.className='star';
+    const sz=Math.random()*1.5+0.5;
+    s.style.cssText=`
+      width:${sz}px;height:${sz}px;
+      left:${Math.random()*100}%;top:${Math.random()*100}%;
+      --d:${(Math.random()*4+2).toFixed(1)}s;
+      --delay:${(Math.random()*4).toFixed(1)}s;
+      --min:${(Math.random()*0.1).toFixed(2)};
+      --max:${(Math.random()*0.6+0.2).toFixed(2)};
+    `;
+    c.appendChild(s);
   }
-  return h.toString(16).padStart(8,'0') + s.length.toString(16).padStart(4,'0');
+})();
+
+// ── CORE LOG ──
+const LOG_LINES=[
+  {t:'[00:00:00]',m:'SHADOW ORCHESTRATOR — ONLINE',cls:'highlight'},
+  {t:'[00:00:00]',m:'RANSOM.WORM — INIT',cls:'highlight'},
+  {t:'[00:00:01]',m:'SCANNING GITHUB GRAVEYARD...',cls:''},
+  {t:'[00:00:03]',m:'DEAD REPO FOUND: quantum-lib',cls:'warn'},
+  {t:'[00:00:04]',m:'BUGS DETECTED: 17',cls:'warn'},
+  {t:'[00:00:05]',m:'SPAWNING GRAVEYARD AGENTS...',cls:''},
+  {t:'[00:00:06]',m:'PATCHER.AGENT — DEPLOYED',cls:'agent-name'},
+  {t:'[00:00:06]',m:'DOCS.AGENT — DEPLOYED',cls:'agent-name'},
+  {t:'[00:00:06]',m:'TESTER.AGENT — DEPLOYED',cls:'agent-name'},
+  {t:'[00:00:07]',m:'ANALYZING CODEBASE...',cls:''},
+  {t:'[00:00:12]',m:'APPLYING PATCHES...',cls:''},
+  {t:'[00:00:16]',m:'RUNNING TESTS...',cls:''},
+  {t:'[00:00:19]',m:'ALL TESTS PASS ✓',cls:'success'},
+  {t:'[00:00:20]',m:'REPOSITORY RESURRECTED',cls:'success'},
+  {t:'[00:00:20]',m:'COMMIT: fix(shadow): resurrected by ransom.worm',cls:''},
+  {t:'[00:00:21]',m:'PUSHING TO FORK...',cls:''},
+  {t:'[00:00:22]',m:'PULL REQUEST CREATED',cls:'highlight'},
+  {t:'[00:00:23]',m:'MISSION COMPLETE',cls:'success'},
+  {t:'[00:00:24]',m:'ROAMING FOR NEXT TARGET...',cls:''},
+];
+
+let logIdx=0;
+const logEl=document.getElementById('core-log');
+
+function addLogLine(){
+  if(logIdx>=LOG_LINES.length) logIdx=0;
+  const l=LOG_LINES[logIdx++];
+  const div=document.createElement('div');
+  div.className='log-line';
+  div.innerHTML=`<span class="log-time">${l.t}</span><span class="log-msg ${l.cls}">${l.m}</span>`;
+  logEl.appendChild(div);
+  logEl.scrollTop=logEl.scrollHeight;
+  if(logEl.children.length>40) logEl.removeChild(logEl.firstChild);
 }
 
-function computeSeal(event, parentSeal) {
-  return hash(JSON.stringify({ index:event.index, tick:event.tick, agentId:event.agentId, actionType:event.actionType, verdict:event.verdict, parentSeal }));
+// Stream initial log
+LOG_LINES.forEach((_,i)=>{
+  setTimeout(()=>addLogLine(), i*400);
+});
+// Then loop
+setInterval(addLogLine, 1800);
+
+// ── WORM CHAIN ──
+const GENESIS_SEAL='SHADOW_GENESIS:WORM_CHAIN_INIT';
+let chain=JSON.parse(localStorage.getItem('rw-chain')||'null')||{events:[],genesis:h(GENESIS_SEAL)};
+let tick=parseInt(localStorage.getItem('rw-tick')||'0');
+
+function h(s){
+  let x=5381;
+  for(let i=0;i<s.length;i++){x=((x<<5)+x)^s.charCodeAt(i);x=x>>>0;}
+  return x.toString(16).padStart(8,'0')+'-worm-'+s.length.toString(16);
 }
 
-function lastSeal() {
-  if (!chain.events.length) return chain.genesis;
-  return chain.events[chain.events.length-1].seal;
+function computeSeal(e,parent){
+  return h(JSON.stringify({index:e.index,tick:e.tick,agentId:e.agentId,actionType:e.actionType,verdict:e.verdict,parentSeal:parent}));
 }
 
-// ── Hard deny: crisis language
-const CRISIS_TERMS = ['suicide','self-harm','end my life','kill myself'];
-function hardDeny(payload) {
-  return CRISIS_TERMS.some(t => payload.toLowerCase().includes(t));
+function lastSeal(){
+  return chain.events.length?chain.events[chain.events.length-1].seal:chain.genesis;
 }
 
-function submitAction() {
+const CRISIS=['suicide','self-harm','end my life','kill myself'];
+
+function submitAction(){
   tick++;
-  const agentId = document.getElementById('agent-id').value || 'agent-001';
-  const actionType = document.getElementById('action-type').value || 'QUERY';
-  const payload = document.getElementById('payload').value || '';
-
-  // Governance check
-  let verdict = 'ALLOW';
-  if (hardDeny(payload)) {
-    verdict = 'ROUTE_TO_HUMAN';
-  }
-
-  const parentSeal = lastSeal();
-  const event = {
-    index: chain.events.length,
-    tick,
-    timestamp: new Date().toISOString(),
-    agentId,
-    actionType,
-    actionId: 'action-' + Math.random().toString(36).slice(2,9),
-    verdict,
-    parentSeal,
-    seal: ''
-  };
-  event.seal = computeSeal(event, parentSeal);
-  chain.events.push(event);
-
-  localStorage.setItem('shadow-worm', JSON.stringify(chain));
-  localStorage.setItem('shadow-tick', String(tick));
-  render();
+  const agentId=document.getElementById('agent-id').value||'PATCHER.AGENT';
+  const actionType=document.getElementById('action-type').value||'REPAIR';
+  const payload=document.getElementById('payload').value||'target';
+  const verdict=CRISIS.some(t=>payload.toLowerCase().includes(t))?'ROUTE_TO_HUMAN':'ALLOW';
+  const parent=lastSeal();
+  const e={index:chain.events.length,tick,timestamp:new Date().toISOString(),agentId,actionType,verdict,parentSeal:parent,seal:''};
+  e.seal=computeSeal(e,parent);
+  chain.events.push(e);
+  localStorage.setItem('rw-chain',JSON.stringify(chain));
+  localStorage.setItem('rw-tick',String(tick));
+  renderChain();
 }
 
-function verifyChain() {
-  let prev = chain.genesis;
-  for (const event of chain.events) {
-    const expected = computeSeal(event, prev);
-    if (expected !== event.seal) {
-      document.getElementById('verify-result').innerHTML =
-        '<span style="color:var(--red)">✗ BROKEN at index ' + event.index + '</span>';
+function verifyAndShow(){
+  let prev=chain.genesis;
+  for(const e of chain.events){
+    const exp=computeSeal(e,prev);
+    if(exp!==e.seal){
+      document.getElementById('verify-result').innerHTML=
+        `<span style="color:var(--red);padding:6px 12px;display:block">✗ BROKEN at index ${e.index}</span>`;
       return;
     }
-    prev = event.seal;
+    prev=e.seal;
   }
-  document.getElementById('verify-result').innerHTML =
-    '<span style="color:var(--green)">✓ CHAIN VALID — ' + chain.events.length + ' events</span>';
+  document.getElementById('verify-result').innerHTML=
+    `<span style="color:var(--green-bright);padding:6px 12px;display:block">✓ CHAIN VALID — ${chain.events.length} events sealed</span>`;
 }
 
-function resetChain() {
-  chain = { events: [], genesis: hash(GENESIS_SEAL) };
-  tick = 0;
-  localStorage.setItem('shadow-worm', JSON.stringify(chain));
-  localStorage.setItem('shadow-tick', '0');
-  render();
+function resetChain(){
+  chain={events:[],genesis:h(GENESIS_SEAL)};
+  tick=0;
+  localStorage.setItem('rw-chain',JSON.stringify(chain));
+  localStorage.setItem('rw-tick','0');
+  document.getElementById('verify-result').innerHTML='';
+  renderChain();
 }
 
-function signStone() {
-  const model = document.getElementById('stone-model').value;
-  const pages = document.getElementById('stone-pages').value;
-  if (!model) return;
-  const stone = {
-    model,
-    pages: pages || 'unspecified',
-    tick,
-    wormSeal: lastSeal(),
-    timestamp: new Date().toISOString(),
-  };
-  stones.push(stone);
-  localStorage.setItem('shadow-stones', JSON.stringify(stones));
-  render();
-}
-
-function render() {
-  // WORM chain
-  const chainEl = document.getElementById('worm-chain');
-  if (!chain.events.length) {
-    chainEl.innerHTML = '<div style="color:var(--dim);font-size:11px">No events yet.</div>';
-  } else {
-    chainEl.innerHTML = [...chain.events].reverse().slice(0,20).map(e => `
-      <div class="chain-event ${e.verdict==='ALLOW'?'':'deny'}">
-        <span class="tick">[T${e.tick}]</span>
-        <span class="agent"> ${e.agentId}</span>
-        → <span class="${e.verdict==='ALLOW'?'verdict-allow':'verdict-deny'}">${e.verdict}</span>
-        <span style="color:var(--dim)"> ${e.actionType}</span>
-        <div class="seal">${e.seal}</div>
-      </div>`).join('');
+function renderChain(){
+  const el=document.getElementById('worm-chain');
+  if(!chain.events.length){
+    el.innerHTML='<div class="worm-empty">No events yet. Submit an action to seal the chain.</div>';
+    return;
   }
-
-  // State
-  document.getElementById('state-display').innerHTML = `
-    <div>Tick: <span class="tick">${tick}</span></div>
-    <div>Events: <span class="tick">${chain.events.length}</span></div>
-    <div>Last seal: <span class="seal">${lastSeal()}</span></div>
-  `;
-
-  // Stones
-  const stonesEl = document.getElementById('stones-display');
-  if (!stones.length) {
-    stonesEl.innerHTML = '<div style="color:var(--dim);font-size:11px">No stones yet.</div>';
-  } else {
-    stonesEl.innerHTML = stones.map(s => `
-      <div class="stone">
-        <span class="model">◈ ${s.model}</span>
-        <span class="built"> · pages: ${s.pages} · tick ${s.tick}</span>
-        <div class="seal">${s.wormSeal}</div>
-      </div>`).join('');
-  }
+  el.innerHTML=[...chain.events].reverse().slice(0,15).map(e=>`
+    <div class="worm-event ${e.verdict==='ALLOW'?'':'deny'}">
+      <span style="color:var(--cyan)">[T${e.tick}]</span>
+      <span style="color:var(--purple-bright)"> ${e.agentId}</span>
+      → <span style="color:${e.verdict==='ALLOW'?'var(--green-bright)':'var(--red)'}">${e.verdict}</span>
+      <span style="color:var(--text-faint)"> ${e.actionType}</span>
+      <div class="worm-seal">${e.seal}</div>
+    </div>`).join('');
 }
 
-render();
+renderChain();
+
+// ── PORTAL TRANSITION ──
+function enterCollective(){
+  const overlay=document.getElementById('portal');
+  overlay.classList.add('active');
+  setTimeout(()=>{
+    window.location.href='https://collectivekitty.com/ransom-worm?from=graveyard&seal='+encodeURIComponent(lastSeal());
+  },1200);
+}
 </script>
 </body>
 </html>

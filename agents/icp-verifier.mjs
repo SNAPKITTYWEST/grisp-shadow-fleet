@@ -80,7 +80,7 @@ function detectDrift(prev, curr) {
   return { drifted: false }
 }
 
-async function verifyOnce(args) {
+export async function verifyOnce(args = {}) {
   const canisterId = args.canister || null
   const dfx = loadDfxConfig()
 
@@ -178,4 +178,6 @@ async function run() {
   }, interval)
 }
 
-run().catch(console.error)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch(console.error)
+}

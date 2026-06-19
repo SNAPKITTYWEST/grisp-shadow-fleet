@@ -111,6 +111,7 @@ function extractName(filePath) {
 }
 
 async function callLLM(source, sourceLang, targetLang, content) {
+  if (process.env.BIFROST_USE_LLM !== '1') return null
   // Attempt Claude API if available
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
@@ -146,20 +147,20 @@ Translate to ${targetLang}:`
   }
 }
 
-async function run() {
-  const args = process.argv.slice(2)
+export async function run(options = {}) {
+  const args = options.args || process.argv.slice(2)
   const srcIdx = args.indexOf('--source')
   const tgtIdx = args.indexOf('--targets')
   const outIdx = args.indexOf('--out')
 
-  if (srcIdx < 0) {
+  if (!options.sourcePath && srcIdx < 0) {
     console.error('[BIFROST] Usage: --source <file> --targets <lang,...> [--out <dir>]')
-    process.exit(1)
+    return { status: 'SKIPPED', seal: null, results: [], reason: 'missing source' }
   }
 
-  const sourcePath = args[srcIdx + 1]
-  const targetLangs = (args[tgtIdx + 1] || 'rust,lean4,haskell,typescript').split(',').map(s => s.trim())
-  const outDir = args[outIdx + 1] || join(dirname(sourcePath), 'bifrost-out')
+  const sourcePath = options.sourcePath || args[srcIdx + 1]
+  const targetLangs = options.targets || (args[tgtIdx + 1] || 'rust,lean4,haskell,typescript').split(',').map(s => s.trim())
+  const outDir = options.outDir || args[outIdx + 1] || join(dirname(sourcePath), 'bifrost-out')
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true })
 
@@ -190,7 +191,7 @@ async function run() {
     }
 
     const header = def.header.replace('{{src}}', basename(sourcePath))
-    const outFile = join(outDir, name + '-bifrost' + def.ext)
+    const outFile = join(outDir, (options.namePrefix || '') + name + '-bifrost' + def.ext)
     writeFileSync(outFile, `${header}\n// Method: ${method}\n\n${translated}\n`)
 
     console.log(`[BIFROST] ✓ ${def.lang}: ${outFile} (${method})`)
@@ -206,6 +207,9 @@ async function run() {
   console.log('[BIFROST] WORM seal:', seal)
   console.log('[BIFROST] Translations:', results.length)
   console.log('[BIFROST] State sync: all language substrates updated')
+  return { status: 'TRANSLATED', seal, results, source: sourcePath }
 }
 
-run().catch(console.error)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch(console.error)
+}

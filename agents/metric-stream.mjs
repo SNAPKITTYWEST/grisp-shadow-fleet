@@ -6,7 +6,7 @@
  * Run: node agents/metric-stream.mjs [--repo <path>] [--out <path>]
  */
 import { execSync } from 'node:child_process'
-import { writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
+import { writeFileSync, readdirSync, statSync, readFileSync } from 'node:fs'
 import { join, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sealEvent } from './worm-chain.mjs'
@@ -27,7 +27,7 @@ const LANG_MAP = {
 
 const IGNORE = new Set(['node_modules', '.git', 'dist', 'target', '.next', 'build', '__pycache__'])
 
-function walk(dir, results = { byLang: {}, files: 0, totalLines: 0 }) {
+async function walk(dir, results = { byLang: {}, files: 0, totalLines: 0 }) {
   let entries
   try { entries = readdirSync(dir) } catch { return results }
   for (const e of entries) {
@@ -74,7 +74,8 @@ function walkSync(dir, results = { byLang: {}, files: 0, totalLines: 0 }) {
       if (!lang) continue
       results.files++
       try {
-        const lines = parseInt(execSync(`wc -l < "${full.replace(/"/g, '\\"')}" 2>/dev/null`, { shell: true, encoding: 'utf8' }).trim()) || 0
+        const text = readFileSync(full, 'utf8')
+        const lines = text.length ? text.split(/\r\n|\r|\n/).length : 0
         results.totalLines += lines
         if (!results.byLang[lang]) results.byLang[lang] = { files: 0, lines: 0 }
         results.byLang[lang].files++
@@ -93,20 +94,22 @@ function gitMetrics(repoPath) {
     const commits = parseInt(execSync('git rev-list --count HEAD', { cwd: repoPath, encoding: 'utf8' }).trim())
     const lastCommit = execSync('git log -1 --format="%H|%ai|%s"', { cwd: repoPath, encoding: 'utf8' }).trim()
     const [hash, date, msg] = lastCommit.split('|')
-    const authors = parseInt(execSync('git shortlog -sn HEAD | wc -l', { cwd: repoPath, encoding: 'utf8', shell: true }).trim())
-    const velocity7d = parseInt(execSync('git log --oneline --since="7 days ago" | wc -l', { cwd: repoPath, encoding: 'utf8', shell: true }).trim())
+    const shortlog = execSync('git shortlog -sn HEAD', { cwd: repoPath, encoding: 'utf8' }).trim()
+    const recent = execSync('git log --oneline --since="7 days ago"', { cwd: repoPath, encoding: 'utf8' }).trim()
+    const authors = shortlog ? shortlog.split(/\r?\n/).length : 0
+    const velocity7d = recent ? recent.split(/\r?\n/).length : 0
     return { commits, lastCommit: { hash: hash?.trim(), date: date?.trim(), msg: msg?.trim() }, authors, velocity7d }
   } catch {
     return { commits: 0, lastCommit: null, authors: 0, velocity7d: 0 }
   }
 }
 
-async function run() {
-  const args = process.argv.slice(2)
+export async function run(options = {}) {
+  const args = options.args || process.argv.slice(2)
   const repoIdx = args.indexOf('--repo')
   const outIdx = args.indexOf('--out')
-  const repoPath = repoIdx >= 0 ? args[repoIdx + 1] : join(__dir, '..', '..', '..')
-  const outPath = outIdx >= 0 ? args[outIdx + 1] : join(__dir, '..', 'public', 'metrics.json')
+  const repoPath = options.repoPath || (repoIdx >= 0 ? args[repoIdx + 1] : join(__dir, '..', '..', '..'))
+  const outPath = options.outPath || (outIdx >= 0 ? args[outIdx + 1] : join(__dir, '..', 'public', 'metrics.json'))
 
   console.log('[METRIC] Shadow Orchestrator — Metric Stream Agent')
   console.log('[METRIC] Scanning:', repoPath)
@@ -154,4 +157,6 @@ async function run() {
   return metrics
 }
 
-run().catch(console.error)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch(console.error)
+}

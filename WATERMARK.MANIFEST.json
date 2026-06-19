@@ -1,0 +1,20 @@
+{
+  "entity": "SNAPKITTY-SOVEREIGN-OS:AHMAD-ALI-PARR:2026",
+  "generated": "2026-06-19T02:01:41.863Z",
+  "marks": [
+    {
+      "filePath": "C:\\Users\\jessi\\Desktop\\bobs control repo\\shadow-orchestrator\\bifrost-out\\01-state-index-bifrost.lean",
+      "contentSha": "cd96412aea798a5b20fc290f3e730673d77460d8906700670fbb7c039a201164",
+      "sig": "2b12c4185b63b55c424c04ba5390c882...",
+      "ts": "2026-06-19T02:01:41.863Z"
+    },
+    {
+      "filePath": "C:\\Users\\jessi\\Desktop\\bobs control repo\\shadow-orchestrator\\bifrost-out\\01-state-index-bifrost.rs",
+      "contentSha": "9481ab8b15e41e6440fdd5e8cd7c7c97c052dd90c4396f14168bb4c23eebbd03",
+      "sig": "1609872d5ede402497237b7f2c8af3b7...",
+      "ts": "2026-06-19T02:01:41.864Z"
+    }
+  ],
+  "wormSeal": "746d4681-worm-c0",
+  "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPCHF7NzsUWigUQzDSTUx281yWSCcUb+QBoDTZb1uyWA=\n-----END PUBLIC KEY-----\n"
+}

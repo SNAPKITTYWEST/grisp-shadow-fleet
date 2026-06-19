@@ -7,7 +7,7 @@
  *
  * Run: node agents/watermark.mjs --target <file_or_dir> [--entity <id>]
  */
-import { createHash, createSign, generateKeyPairSync } from 'node:crypto'
+import { createHash, sign as cryptoSign, generateKeyPairSync } from 'node:crypto'
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, extname, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,9 +55,7 @@ function contentHash(content) {
 }
 
 function sign(privateKeyPem, data) {
-  const sign = createSign('SHA256')
-  sign.update(data)
-  return sign.sign(privateKeyPem, 'hex')
+  return cryptoSign(null, Buffer.from(data), privateKeyPem).toString('hex')
 }
 
 function buildWatermarkBlock(filePath, contentSha, sig, ts) {
@@ -164,10 +162,10 @@ function collectFiles(target) {
   return files
 }
 
-async function run() {
-  const args = process.argv.slice(2)
+export async function run(options = {}) {
+  const args = options.args || process.argv.slice(2)
   const targetIdx = args.indexOf('--target')
-  const target = targetIdx >= 0 ? args[targetIdx + 1] : join(__dir, '..')
+  const target = options.target || (targetIdx >= 0 ? args[targetIdx + 1] : join(__dir, '..'))
 
   console.log('[WATERMARK] Shadow Orchestrator — Cryptographic Provenance Agent')
   console.log('[WATERMARK] Entity:', ENTITY)
@@ -195,6 +193,9 @@ async function run() {
   console.log('[WATERMARK] Manifest sealed:', MANIFEST_PATH)
   console.log('[WATERMARK] WORM seal:', seal)
   console.log('[WATERMARK] Files marked:', manifest.marks.length)
+  return { status: 'WATERMARKED', seal, marks: manifest.marks, target }
 }
 
-run().catch(console.error)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch(console.error)
+}

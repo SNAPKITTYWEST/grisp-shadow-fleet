@@ -1,0 +1,66 @@
+{
+  "generated": "2026-06-19T02:01:41.847Z",
+  "agent": "METRIC-STREAM",
+  "repo": "C:\\Users\\jessi\\Desktop\\bobs control repo\\shadow-orchestrator",
+  "summary": {
+    "totalFiles": 33,
+    "totalLines": 9422,
+    "languages": 8,
+    "probabilisticErrors": 0,
+    "auditedInMs": 238
+  },
+  "git": {
+    "commits": 10,
+    "lastCommit": {
+      "hash": "093b28367b6d7df86e316b014a3862ae02e531af",
+      "date": "2026-06-18 19:58:15 -0600",
+      "msg": "feat: 4 autonomous shadow agents — Bifrost, Watermark, Metrics, ICP Verifier"
+    },
+    "authors": 2,
+    "velocity7d": 10
+  },
+  "byLanguage": [
+    {
+      "lang": "JSON",
+      "files": 9,
+      "lines": 5357
+    },
+    {
+      "lang": "HTML",
+      "files": 1,
+      "lines": 1789
+    },
+    {
+      "lang": "JavaScript",
+      "files": 6,
+      "lines": 965
+    },
+    {
+      "lang": "TypeScript",
+      "files": 10,
+      "lines": 750
+    },
+    {
+      "lang": "Markdown",
+      "files": 4,
+      "lines": 309
+    },
+    {
+      "lang": "Rust",
+      "files": 1,
+      "lines": 112
+    },
+    {
+      "lang": "Lean4",
+      "files": 1,
+      "lines": 104
+    },
+    {
+      "lang": "YAML",
+      "files": 1,
+      "lines": 36
+    }
+  ],
+  "headline": "9,422 lines audited · 33 files · 10 commits · 0 probabilistic errors remaining",
+  "wormSeal": "cb181f50-worm-a3"
+}

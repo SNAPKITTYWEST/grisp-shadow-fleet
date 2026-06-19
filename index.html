@@ -1051,14 +1051,48 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
   text-align: right;
 }
 
+/* AGENT STATUS ROW */
+.agent-status-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-top: none;
+  margin: 0 24px;
+}
+.agt-cell {
+  background: var(--void);
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.agt-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.agt-dot.ok   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.agt-dot.warn { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.agt-dot.err  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.agt-dot.idle { background: var(--text-faint); }
+.agt-name { font-size: 7px; letter-spacing: 1.5px; color: var(--text-faint); flex: 1; }
+.agt-val  { font-size: 8px; font-family: monospace; color: var(--text-dim); text-align: right; }
+.agt-tick { justify-content: flex-end; }
+
 @media (max-width: 900px) {
   .stage-canvas { grid-template-columns: 1fr 1fr; min-height: 360px; }
+  .agent-status-row { grid-template-columns: repeat(3, 1fr); }
   .zone { min-height: 180px; }
   .phase-track { flex-wrap: wrap; gap: 8px; }
   .phase-line { display: none; }
 }
 @media (max-width: 600px) {
   .stage-canvas { grid-template-columns: 1fr; }
+  .agent-status-row { grid-template-columns: 1fr 1fr; }
 }
 </style>
 </head>
@@ -1222,6 +1256,34 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
         <span class="st-phase-badge" id="st-phase-badge">PHASE 0 · SLEEP</span>
       </div>
       <div class="st-body" id="st-log"></div>
+    </div>
+
+    <!-- AGENT STATUS ROW (fed by orchestrator tick JSON) -->
+    <div class="agent-status-row" id="agent-status-row">
+      <div class="agt-cell" id="agt-icp">
+        <span class="agt-dot" id="dot-icp"></span>
+        <span class="agt-name">ICP-VERIFIER</span>
+        <span class="agt-val" id="val-icp">—</span>
+      </div>
+      <div class="agt-cell" id="agt-metric">
+        <span class="agt-dot" id="dot-metric"></span>
+        <span class="agt-name">METRIC-STREAM</span>
+        <span class="agt-val" id="val-metric">—</span>
+      </div>
+      <div class="agt-cell" id="agt-bifrost">
+        <span class="agt-dot" id="dot-bifrost"></span>
+        <span class="agt-name">BIFROST</span>
+        <span class="agt-val" id="val-bifrost">—</span>
+      </div>
+      <div class="agt-cell" id="agt-watermark">
+        <span class="agt-dot" id="dot-watermark"></span>
+        <span class="agt-name">WATERMARK</span>
+        <span class="agt-val" id="val-watermark">—</span>
+      </div>
+      <div class="agt-cell agt-tick">
+        <span class="agt-name">TICK</span>
+        <span class="agt-val" id="val-tick" style="color:var(--purple-bright)">—</span>
+      </div>
     </div>
 
     <!-- LOC HANDSHAKE INDICATOR -->
@@ -1632,6 +1694,111 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
     phaseTimer = setTimeout(advancePhase, 3500);
   }, 1800);
 
+})();
+
+// ── ORCHESTRATOR TICK CONSUMER ──
+(function() {
+  const STATUS_COLOR = {
+    'VERIFIED': 'ok', 'UPDATED': 'ok', 'TRANSLATED': 'ok', 'WATERMARKED': 'ok',
+    'IDLE': 'idle', 'offline': 'idle',
+    'DRIFT_DETECTED': 'err', 'ERROR': 'err',
+  }
+  const AGENT_MAP = {
+    'icp-verifier':      { dot: 'dot-icp',      val: 'val-icp' },
+    'metric-stream':     { dot: 'dot-metric',    val: 'val-metric' },
+    'bifrost-translator':{ dot: 'dot-bifrost',   val: 'val-bifrost' },
+    'watermark':         { dot: 'dot-watermark', val: 'val-watermark' },
+  }
+
+  function ingestTick(event) {
+    const tick = event.tick || '?'
+    const ts = event.ts ? new Date(event.ts).toLocaleTimeString() : ''
+
+    document.getElementById('val-tick').textContent = `#${tick}`
+
+    const pulse = document.getElementById('hs-pulse')
+    const sealEl = document.getElementById('hs-seal')
+    pulse.classList.add('active')
+    sealEl.style.color = 'var(--green)'
+    sealEl.textContent = `TICK #${tick} · ${ts}`
+    setTimeout(() => { pulse.classList.remove('active') }, 1200)
+
+    for (const agent of (event.agents || [])) {
+      const map = AGENT_MAP[agent.name]
+      if (!map) continue
+      const dot = document.getElementById(map.dot)
+      const val = document.getElementById(map.val)
+      if (dot) {
+        dot.className = 'agt-dot ' + (STATUS_COLOR[agent.status] || 'idle')
+      }
+      if (val) {
+        val.textContent = agent.status
+        val.style.color = agent.status === 'DRIFT_DETECTED' || agent.status === 'ERROR'
+          ? 'var(--red)' : agent.status === 'IDLE' || agent.status === 'offline'
+          ? 'var(--text-faint)' : 'var(--green)'
+      }
+    }
+
+    // Mirror into stage terminal
+    const body = document.getElementById('st-log')
+    const line = document.createElement('span')
+    line.className = 'st-line dim'
+    line.textContent = `[ORCH] tick#${tick} · ${(event.agents||[]).map(a => a.name.split('-')[0].toUpperCase() + ':' + a.status).join(' · ')}`
+    body.appendChild(line)
+    body.scrollTop = body.scrollHeight
+  }
+
+  // Simulate demo tick stream until real WebSocket connects
+  let demoTick = 0
+  const DEMO_STATES = [
+    ['VERIFIED','UPDATED','IDLE','IDLE'],
+    ['VERIFIED','UPDATED','TRANSLATED','WATERMARKED'],
+    ['offline','UPDATED','IDLE','IDLE'],
+    ['VERIFIED','UPDATED','TRANSLATED','WATERMARKED'],
+  ]
+  const AGENT_NAMES = ['icp-verifier','metric-stream','bifrost-translator','watermark']
+
+  function demoTick_() {
+    demoTick++
+    const states = DEMO_STATES[(demoTick - 1) % DEMO_STATES.length]
+    ingestTick({
+      tick: demoTick,
+      ts: new Date().toISOString(),
+      agents: AGENT_NAMES.map((name, i) => ({
+        name,
+        status: states[i],
+        seal: Math.random().toString(16).slice(2, 10) + '-worm-' + i.toString(16),
+      }))
+    })
+  }
+
+  // Try real metrics.json from GitHub Pages
+  async function tryFetchMetrics() {
+    try {
+      const r = await fetch('./public/metrics.json', { cache: 'no-cache' })
+      if (!r.ok) return
+      const m = await r.json()
+      const val = document.getElementById('val-metric')
+      if (val) val.title = m.headline || ''
+    } catch {}
+  }
+
+  // WebSocket handshake (connects to local orchestrator when running)
+  function tryWebSocket() {
+    try {
+      const ws = new WebSocket('ws://localhost:7777')
+      ws.onmessage = (e) => {
+        try { ingestTick(JSON.parse(e.data)) } catch {}
+      }
+      ws.onerror = () => {} // fallback to demo
+    } catch {}
+  }
+
+  // Boot: demo ticks every 7s, attempt WS connection, fetch metrics
+  tryWebSocket()
+  tryFetchMetrics()
+  setTimeout(demoTick_, 2500)
+  setInterval(demoTick_, 7000)
 })();
 
 // ── STARS ──

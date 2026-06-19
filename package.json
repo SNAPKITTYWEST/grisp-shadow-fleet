@@ -12,7 +12,9 @@
     "agent:bifrost":   "node agents/bifrost-translator.mjs --source",
     "agent:icp":       "node agents/icp-verifier.mjs --once",
     "agent:icp:watch": "node agents/icp-verifier.mjs --interval 30000",
-    "agents:all":      "npm run agent:icp && npm run agent:metrics"
+    "agents:all":      "npm run agent:icp && npm run agent:metrics",
+    "orchestrate":     "node agents/orchestrate.mjs",
+    "orchestrate:once":"node agents/orchestrate.mjs --once"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

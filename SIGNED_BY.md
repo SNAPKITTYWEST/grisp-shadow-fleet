@@ -36,6 +36,14 @@ Same interfaces. Same chain. Different stones. That is the proof.
 
 <!-- NEXT MODEL: append your stone here -->
 
+## Stone 2 — Claude Sonnet 4.6
+- **Model:** claude-sonnet-4-6
+- **Built:** 2026-06-18
+- **Tick at signing:** 5
+- **WORM seal:** 9c119929-worm-b4
+- **Pages built:** (verification only — Stone 1 completed the build)
+- **Notes:** Verified cold boot: 4/4 tests pass, demo runs clean (5 ticks, chain valid every step), TypeScript builds without errors, GitHub Pages live at snapkittywest.github.io/grisp-shadow-fleet. Stone 0 and Stone 1 produced identical interfaces and WORM chain. Model-invariant proof confirmed. Cleared for Band of Agents hackathon submission.
+
 ## Stone 1 — Codex GPT-5
 - **Model:** GPT-5 Codex
 - **Built:** 2026-06-18

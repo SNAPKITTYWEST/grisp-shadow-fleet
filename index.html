@@ -635,6 +635,431 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
   padding: 6px 12px;
   min-height: 24px;
 }
+
+/* ═══════════════════════════════════════
+   WORLD STAGE — Graveyard Agent Journey
+═══════════════════════════════════════ */
+#world-stage {
+  position: relative;
+  z-index: 2;
+  padding: 0 0 24px;
+  overflow: hidden;
+}
+
+/* PHASE TRACK */
+.phase-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 40px 12px;
+  gap: 0;
+}
+.phase-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  opacity: 0.3;
+  transition: opacity 0.4s;
+}
+.phase-node.active { opacity: 1; }
+.phase-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  border: 1px solid var(--border2);
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.phase-node.active .phase-dot {
+  background: var(--purple-bright);
+  box-shadow: 0 0 10px var(--purple-bright);
+}
+.phase-node[data-phase="0"].active .phase-dot { background: var(--text-faint); box-shadow: none; }
+.phase-node[data-phase="1"].active .phase-dot { background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+.phase-node[data-phase="2"].active .phase-dot { background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+.phase-node[data-phase="3"].active .phase-dot { background: var(--purple-bright); box-shadow: 0 0 14px var(--purple-bright); }
+.phase-node[data-phase="4"].active .phase-dot { background: var(--red); box-shadow: 0 0 14px var(--red); }
+.phase-node[data-phase="5"].active .phase-dot { background: var(--green); box-shadow: 0 0 14px var(--green); }
+.phase-label {
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+.phase-node.active .phase-label { color: var(--text-dim); }
+.phase-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 14px;
+  min-width: 20px;
+  max-width: 80px;
+}
+
+/* STAGE CANVAS */
+.stage-canvas {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  min-height: 220px;
+  border: 1px solid var(--border);
+  margin: 0 24px;
+  background: var(--deep);
+  overflow: hidden;
+  position: relative;
+}
+
+.zone {
+  position: relative;
+  border-right: 1px solid var(--border);
+  padding: 12px;
+  overflow: hidden;
+  transition: background 0.5s;
+  min-height: 220px;
+}
+.zone:last-child { border-right: none; }
+
+.zone-label {
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ZONE THEMES */
+.zone-grave { background: rgba(4,4,10,0.95); }
+.zone-grave.lit { background: rgba(124,58,237,0.06); border-left: 1px solid var(--purple-dim); }
+.zone-net { background: rgba(4,4,10,0.9); }
+.zone-net.lit { background: rgba(245,158,11,0.04); }
+.zone-icp { background: rgba(4,4,10,0.9); }
+.zone-icp.lit { background: rgba(168,85,247,0.06); }
+.zone-code { background: rgba(4,4,10,0.9); }
+.zone-code.lit { background: rgba(16,185,129,0.05); }
+
+/* LOC ANCHOR */
+.loc-anchor {
+  position: absolute;
+  bottom: 12px;
+  right: 8px;
+  text-align: center;
+}
+.loc-ascii {
+  font-size: 9px;
+  line-height: 1.4;
+  color: #f97316;
+  text-shadow: 0 0 8px #f97316;
+  animation: loc-pulse 2s ease-in-out infinite;
+  display: block;
+  font-family: monospace;
+}
+@keyframes loc-pulse {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 6px #f97316; }
+  50% { opacity: 1; text-shadow: 0 0 16px #f97316, 0 0 30px rgba(249,115,22,0.4); }
+}
+.loc-label {
+  font-size: 7px;
+  color: #f97316;
+  letter-spacing: 1.5px;
+  margin-top: 2px;
+  opacity: 0.6;
+}
+
+/* AGENT SPRITE */
+.grave-slot {
+  position: absolute;
+  left: 12px;
+  bottom: 40px;
+}
+.grave-marker { text-align: center; }
+.tombstone-mini { font-size: 20px; }
+.grave-name { font-size: 7px; color: var(--text-faint); letter-spacing: 1px; }
+
+.agent-sprite {
+  position: absolute;
+  left: 0; bottom: 0;
+  text-align: center;
+  transform: translateY(60px);
+  opacity: 0;
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s;
+}
+.agent-sprite.risen {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.cat-ascii {
+  font-family: monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--cyan);
+  text-shadow: 0 0 8px var(--cyan);
+  display: block;
+  animation: cat-breathe 3s ease-in-out infinite;
+  white-space: pre;
+}
+@keyframes cat-breathe {
+  0%, 100% { text-shadow: 0 0 6px var(--cyan); }
+  50% { text-shadow: 0 0 18px var(--cyan), 0 0 35px rgba(6,182,212,0.4); }
+}
+
+/* threat eyes — cat goes red while hunting */
+.agent-sprite.hunting .cat-ascii {
+  color: var(--red);
+  text-shadow: 0 0 12px var(--red), 0 0 30px rgba(239,68,68,0.5);
+  animation: cat-hunt 0.8s ease-in-out infinite;
+}
+@keyframes cat-hunt {
+  0%, 100% { text-shadow: 0 0 8px var(--red); }
+  50% { text-shadow: 0 0 20px var(--red), 0 0 40px rgba(239,68,68,0.6); }
+}
+
+.agent-label {
+  font-size: 7px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+.agent-threat-tag {
+  font-size: 7px;
+  color: var(--red);
+  letter-spacing: 1px;
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  animation: threat-flash 1.2s ease-in-out infinite;
+}
+.agent-sprite.hunting .agent-threat-tag { opacity: 1; }
+@keyframes threat-flash {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* MOVING AGENT (position in world) */
+.roaming-agent {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+  transition: left 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.roaming-cat {
+  font-family: monospace;
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: pre;
+  display: block;
+}
+
+/* LOC HANDSHAKE BEAM */
+.loc-handshake-beam {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, #f97316, var(--cyan));
+  top: 50%;
+  left: 0;
+  width: 0;
+  opacity: 0;
+  transition: width 0.8s, opacity 0.4s;
+  box-shadow: 0 0 4px var(--cyan);
+  z-index: 5;
+}
+.loc-handshake-beam.active { opacity: 1; }
+
+/* ZONE PROCESSES */
+.zone-process {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.5s;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  font-size: 9px;
+}
+.zone.lit .zone-process { opacity: 1; }
+.proc-name { color: var(--text-dim); letter-spacing: 1px; }
+.proc-status { color: var(--green); font-size: 8px; }
+
+/* DARK NET NODES */
+.zone-nodes { position: absolute; inset: 24px 0 24px 0; }
+.net-node {
+  position: absolute;
+  font-size: 8px;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  background: var(--surface);
+  transition: color 0.4s, border-color 0.4s, box-shadow 0.4s;
+}
+.zone-net.lit .net-node {
+  color: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 6px rgba(245,158,11,0.3);
+}
+
+/* ICP RING */
+.icp-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px; height: 100px;
+}
+.icp-core {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--purple-bright);
+  text-shadow: 0 0 10px var(--purple-bright);
+  opacity: 0.3;
+  transition: opacity 0.5s, text-shadow 0.5s;
+}
+.zone-icp.lit .icp-core { opacity: 1; text-shadow: 0 0 20px var(--purple-bright), 0 0 40px rgba(168,85,247,0.4); }
+.icp-orbit {
+  position: absolute;
+  font-size: 7px;
+  color: var(--purple-bright);
+  opacity: 0;
+  transition: opacity 0.5s;
+  top: 50%; left: 50%;
+  transform-origin: 0 0;
+  animation: orbit-spin 4s linear infinite paused;
+}
+.zone-icp.lit .icp-orbit {
+  opacity: 0.7;
+  animation-play-state: running;
+}
+.icp-orbit:nth-child(2) { animation-delay: 0s; }
+.icp-orbit:nth-child(3) { animation-delay: -1.33s; }
+.icp-orbit:nth-child(4) { animation-delay: -2.66s; }
+@keyframes orbit-spin {
+  from { transform: rotate(var(--angle, 0deg)) translateX(44px) rotate(calc(-1 * var(--angle, 0deg))); }
+  to { transform: rotate(calc(var(--angle, 0deg) + 360deg)) translateX(44px) rotate(calc(-1 * (var(--angle, 0deg) + 360deg))); }
+}
+
+/* AST NODES */
+.ast-nodes { position: absolute; inset: 24px 0 24px 0; }
+.ast-node {
+  position: absolute;
+  font-size: 8px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-faint);
+  transition: all 0.4s;
+}
+.ast-node.hit {
+  animation: ast-pulse 0.6s ease-out;
+}
+@keyframes ast-pulse {
+  0% { box-shadow: 0 0 0 rgba(16,185,129,0); background: var(--surface); }
+  30% { box-shadow: 0 0 20px rgba(239,68,68,0.8); background: rgba(239,68,68,0.15); color: var(--red); }
+  100% { box-shadow: 0 0 8px rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); color: var(--green); }
+}
+.ast-rust.hit { }
+.ast-lean.hit { }
+.ast-hask.hit { }
+.ast-apl.hit { }
+
+/* STAGE TERMINAL */
+.stage-terminal {
+  margin: 12px 24px 0;
+  border: 1px solid var(--border);
+  background: var(--void);
+}
+.st-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.st-dot { width: 8px; height: 8px; border-radius: 50%; }
+.st-dot.r { background: #ef4444; }
+.st-dot.a { background: #f59e0b; }
+.st-dot.g { background: #10b981; }
+.st-title { font-size: 9px; letter-spacing: 2px; color: var(--text-faint); flex: 1; }
+.st-phase-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--purple-bright);
+  border: 1px solid var(--purple-dim);
+  padding: 2px 8px;
+  background: rgba(124,58,237,0.1);
+}
+.st-body {
+  padding: 8px 12px;
+  min-height: 60px;
+  max-height: 80px;
+  overflow-y: auto;
+  font-size: 10px;
+  line-height: 1.8;
+}
+.st-line { display: block; animation: slideIn 0.2s ease; }
+.st-line.cyan { color: var(--cyan); }
+.st-line.amber { color: var(--amber); }
+.st-line.purple { color: var(--purple-bright); }
+.st-line.red { color: var(--red); }
+.st-line.green { color: var(--green); }
+.st-line.dim { color: var(--text-faint); }
+
+/* HANDSHAKE BAR */
+.handshake-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 24px 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.hs-label { color: var(--text-faint); }
+.hs-pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.hs-pulse.active {
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+  animation: hs-beat 0.8s ease-in-out infinite;
+}
+@keyframes hs-beat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
+.hs-seal {
+  color: var(--text-faint);
+  font-family: monospace;
+  font-size: 9px;
+  flex: 1;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .stage-canvas { grid-template-columns: 1fr 1fr; min-height: 360px; }
+  .zone { min-height: 180px; }
+  .phase-track { flex-wrap: wrap; gap: 8px; }
+  .phase-line { display: none; }
+}
+@media (max-width: 600px) {
+  .stage-canvas { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -670,6 +1095,143 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
       ◈ WORM SEAL EVERYTHING &nbsp;·&nbsp; EVERY ACTION IMMUTABLE &nbsp;·&nbsp; EVERY AGENT AUDITABLE &nbsp;·&nbsp; EVERY RESURRECTION ETERNAL &nbsp;·&nbsp;
     </div>
   </div>
+
+  <!-- WORLD STAGE -->
+  <div id="world-stage">
+
+    <!-- PHASE LABELS -->
+    <div class="phase-track">
+      <div class="phase-node" id="ph0" data-phase="0">
+        <div class="phase-dot"></div>
+        <div class="phase-label">SLEEP</div>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-node" id="ph1" data-phase="1">
+        <div class="phase-dot"></div>
+        <div class="phase-label">RISE</div>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-node" id="ph2" data-phase="2">
+        <div class="phase-dot"></div>
+        <div class="phase-label">ROAM</div>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-node" id="ph3" data-phase="3">
+        <div class="phase-dot"></div>
+        <div class="phase-label">ICP</div>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-node" id="ph4" data-phase="4">
+        <div class="phase-dot"></div>
+        <div class="phase-label">HUNT</div>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-node" id="ph5" data-phase="5">
+        <div class="phase-dot"></div>
+        <div class="phase-label">SEAL</div>
+      </div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="stage-canvas">
+
+      <!-- ZONE 0: GRAVEYARD -->
+      <div class="zone zone-grave" id="zone0">
+        <div class="zone-label">GRAVEYARD</div>
+        <!-- LOC — never leaves -->
+        <div class="loc-anchor" id="loc-block">
+          <pre class="loc-ascii">┌────────┐
+│ 🦀 LOC │
+│[LOCKED]│
+│  RUST  │
+└────────┘</pre>
+          <div class="loc-label">KINETIC · IMMOVABLE</div>
+        </div>
+        <!-- Cat grave -->
+        <div class="grave-slot">
+          <div class="grave-marker">
+            <div class="tombstone-mini">🪦</div>
+            <div class="grave-name">SNAPKITTY</div>
+          </div>
+          <!-- The rising cat -->
+          <div class="agent-sprite" id="agent-cat">
+            <pre class="cat-ascii" id="cat-face"> /\_/\
+( >.< )
+ &gt; ^ &lt;
+=^.^=</pre>
+            <div class="agent-label">SHADOW AGENT</div>
+            <div class="agent-threat-tag" id="threat-tag">⚠ THREAT DETECTED</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ZONE 1: DARK NET -->
+      <div class="zone zone-net" id="zone1">
+        <div class="zone-label">DARK NET</div>
+        <div class="zone-nodes" id="net-nodes">
+          <div class="net-node" style="top:20%;left:20%">repo://dead</div>
+          <div class="net-node" style="top:55%;left:60%">pkg://broken</div>
+          <div class="net-node" style="top:75%;left:30%">crate://unmaintained</div>
+        </div>
+        <div class="zone-process" id="proc1">
+          <span class="proc-icon">🌐</span>
+          <span class="proc-name">NET_DAEMON</span>
+          <span class="proc-status">ENCOUNTERED</span>
+        </div>
+      </div>
+
+      <!-- ZONE 2: ICP -->
+      <div class="zone zone-icp" id="zone2">
+        <div class="zone-label">INTERNET COMPUTER</div>
+        <div class="icp-ring" id="icp-ring">
+          <div class="icp-core">ICP</div>
+          <div class="icp-orbit" style="--angle:0deg">canister</div>
+          <div class="icp-orbit" style="--angle:120deg">ledger</div>
+          <div class="icp-orbit" style="--angle:240deg">wasm</div>
+        </div>
+        <div class="zone-process" id="proc2">
+          <span class="proc-icon">⛓</span>
+          <span class="proc-name">CANISTER_STATE</span>
+          <span class="proc-status">HANDSHAKE</span>
+        </div>
+      </div>
+
+      <!-- ZONE 3: CODEBASE -->
+      <div class="zone zone-code" id="zone3">
+        <div class="zone-label">CODEBASE HUNT</div>
+        <div class="ast-nodes" id="ast-nodes">
+          <div class="ast-node ast-rust" style="top:15%;left:10%">src/lib.rs</div>
+          <div class="ast-node ast-lean" style="top:40%;left:50%">Proof.lean</div>
+          <div class="ast-node ast-hask" style="top:65%;left:25%">Main.hs</div>
+          <div class="ast-node ast-apl" style="top:25%;left:70%">engine.apl</div>
+        </div>
+        <div class="zone-process" id="proc3">
+          <span class="proc-icon">🔍</span>
+          <span class="proc-name">BUG_VECTOR</span>
+          <span class="proc-status">ELIMINATING</span>
+        </div>
+      </div>
+
+    </div><!-- /stage-canvas -->
+
+    <!-- STAGE TERMINAL -->
+    <div class="stage-terminal">
+      <div class="st-header">
+        <span class="st-dot r"></span><span class="st-dot a"></span><span class="st-dot g"></span>
+        <span class="st-title">AGENT TELEMETRY — LIVE</span>
+        <span class="st-phase-badge" id="st-phase-badge">PHASE 0 · SLEEP</span>
+      </div>
+      <div class="st-body" id="st-log"></div>
+    </div>
+
+    <!-- LOC HANDSHAKE INDICATOR -->
+    <div class="handshake-bar" id="handshake-bar">
+      <span class="hs-label">TERMINAL → UI HANDSHAKE</span>
+      <div class="hs-pulse" id="hs-pulse"></div>
+      <span class="hs-seal" id="hs-seal">awaiting...</span>
+    </div>
+
+  </div><!-- /world-stage -->
 
   <!-- MAIN GRID -->
   <div class="main-grid">
@@ -910,6 +1472,168 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
 </div><!-- /page -->
 
 <script>
+// ── WORLD STAGE ENGINE ──
+(function() {
+
+  // Phase definitions
+  const PHASES = [
+    {
+      id: 0, name: 'SLEEP', zone: -1,
+      badge: 'PHASE 0 · SLEEP',
+      logs: [
+        { t: 'dim', m: '// RANSOM.WORM v0.1.0 — graveyard boot sequence' },
+        { t: 'dim', m: '// LOC anchored. Rust kinetic layer: LOCKED.' },
+        { t: 'dim', m: '// Shadow agent: DORMANT. Awaiting night cycle...' },
+      ]
+    },
+    {
+      id: 1, name: 'RISE', zone: 0,
+      badge: 'PHASE 1 · RISE',
+      logs: [
+        { t: 'cyan', m: '[BOOT] Shadow agent emerging from graveyard...' },
+        { t: 'dim',  m: '[LOC ] RUST LOCK: ENGAGED — you may not enter, I stay.' },
+        { t: 'cyan', m: '[SYNC] TERMINAL → UI handshake: OK' },
+        { t: 'green',m: '[WORM] Genesis seal: b1ada656-worm-1e — IMMUTABLE' },
+      ]
+    },
+    {
+      id: 2, name: 'ROAM', zone: 1,
+      badge: 'PHASE 2 · ROAM · DARK NET',
+      logs: [
+        { t: 'amber', m: '[ROAM] Leaving graveyard. Target: dead repositories.' },
+        { t: 'amber', m: '[NET ] repo://dead — 3 years unmaintained — ACQUIRED' },
+        { t: 'amber', m: '[NET ] pkg://broken — dep hell — SCANNING' },
+        { t: 'dim',   m: '[SYS ] External threat scanner: ⚠ MALWARE DETECTED' },
+        { t: 'amber', m: '[AGENT] World sees threat. We see opportunity.' },
+      ]
+    },
+    {
+      id: 3, name: 'ICP', zone: 2,
+      badge: 'PHASE 3 · ICP · CANISTER STATE',
+      logs: [
+        { t: 'purple', m: '[ICP ] Entering Internet Computer Protocol...' },
+        { t: 'purple', m: '[ICP ] Canister state verification loop: STARTED' },
+        { t: 'purple', m: '[ICP ] Local node ↔ live ledger: DRIFT CHECK...' },
+        { t: 'green',  m: '[ICP ] State match: CONFIRMED — no unauthorized drift' },
+        { t: 'purple', m: '[WORM] Canister handshake sealed to ledger' },
+      ]
+    },
+    {
+      id: 4, name: 'HUNT', zone: 3,
+      badge: 'PHASE 4 · HUNT · CODEBASE',
+      logs: [
+        { t: 'red',   m: '[HUNT] Entering codebase. AST traversal: ACTIVE.' },
+        { t: 'red',   m: '[SCAN] src/lib.rs — E0308: mismatched types — FOUND' },
+        { t: 'red',   m: '[SCAN] Proof.lean — broken theorem chain — FOUND' },
+        { t: 'red',   m: '[SCAN] Main.hs — divergent recursion — FOUND' },
+        { t: 'amber', m: '[FIX ] Bifrost: translating fix across polyglot stack...' },
+        { t: 'green', m: '[FIX ] All language substrates: PATCHED' },
+      ]
+    },
+    {
+      id: 5, name: 'SEAL', zone: 0,
+      badge: 'PHASE 5 · SEAL · RETURN',
+      logs: [
+        { t: 'green', m: '[SEAL] Returning to graveyard. Payload: 4 bugs fixed.' },
+        { t: 'dim',   m: '[LOC ] RUST LOCK acknowledges. Preparing WORM entry.' },
+        { t: 'green', m: '[WORM] Resurrection receipt sealed — SHA-256 anchored' },
+        { t: 'green', m: '[DONE] We do not encrypt. We resurrect.' },
+        { t: 'dim',   m: '// Shadow agent: back in grave. LOC holds the chain.' },
+      ]
+    }
+  ];
+
+  let currentPhase = 0;
+  let phaseTimer = null;
+
+  function setPhase(p) {
+    currentPhase = p;
+    const phase = PHASES[p];
+
+    // Phase track
+    document.querySelectorAll('.phase-node').forEach((n, i) => {
+      n.classList.toggle('active', i <= p);
+    });
+
+    // Badge
+    document.getElementById('st-phase-badge').textContent = phase.badge;
+
+    // Zone lighting
+    document.querySelectorAll('.zone').forEach(z => z.classList.remove('lit'));
+    if (phase.zone >= 0) {
+      const zones = ['zone0','zone1','zone2','zone3'];
+      const el = document.getElementById(zones[phase.zone]);
+      if (el) el.classList.add('lit');
+    }
+
+    // Cat state
+    const cat = document.getElementById('agent-cat');
+    if (p >= 1) cat.classList.add('risen');
+    if (p === 4) cat.classList.add('hunting');
+    else cat.classList.remove('hunting');
+
+    // LOC handshake beam on phase 1 and 5
+    const pulse = document.getElementById('hs-pulse');
+    const sealEl = document.getElementById('hs-seal');
+    if (p === 1 || p === 5) {
+      pulse.classList.add('active');
+      sealEl.style.color = 'var(--green)';
+      sealEl.textContent = 'TERMINAL ↔ UI ✓ handshake sealed';
+    } else if (p === 0) {
+      pulse.classList.remove('active');
+      sealEl.style.color = 'var(--text-faint)';
+      sealEl.textContent = 'awaiting...';
+    } else {
+      pulse.classList.add('active');
+      const seal = Math.random().toString(16).slice(2,10) + '-worm-' + p.toString(16);
+      sealEl.style.color = 'var(--purple-bright)';
+      sealEl.textContent = seal;
+    }
+
+    // AST hit animation on hunt
+    if (p === 4) {
+      const ast = document.querySelectorAll('.ast-node');
+      ast.forEach((n, i) => {
+        setTimeout(() => { n.classList.add('hit'); }, i * 400);
+      });
+    } else {
+      document.querySelectorAll('.ast-node').forEach(n => n.classList.remove('hit'));
+    }
+
+    // Terminal log
+    writePhaseLogs(phase.logs);
+  }
+
+  function writePhaseLogs(logs) {
+    const body = document.getElementById('st-log');
+    body.innerHTML = '';
+    logs.forEach((l, i) => {
+      setTimeout(() => {
+        const span = document.createElement('span');
+        span.className = 'st-line ' + l.t;
+        span.textContent = l.m;
+        body.appendChild(span);
+        body.scrollTop = body.scrollHeight;
+      }, i * 180);
+    });
+  }
+
+  function advancePhase() {
+    const next = (currentPhase + 1) % PHASES.length;
+    setPhase(next);
+    const delay = next === 0 ? 6000 : 3500;
+    phaseTimer = setTimeout(advancePhase, delay);
+  }
+
+  // Boot
+  setPhase(0);
+  setTimeout(() => {
+    setPhase(1);
+    phaseTimer = setTimeout(advancePhase, 3500);
+  }, 1800);
+
+})();
+
 // ── STARS ──
 (function(){
   const c = document.getElementById('stars');

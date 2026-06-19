@@ -1,0 +1,34 @@
+{
+  "feed": [
+    {
+      "repo": "cipher-workflow",
+      "url": "https://github.com/kiaan109/cipher-workflow",
+      "description": "Visual AI workflow automation — Band of Agents #1",
+      "language": "TypeScript",
+      "files": 344,
+      "lines": 39793,
+      "filesWatermarked": 10,
+      "probabilisticErrors": 0,
+      "fixed": ["10 files Bifrost-translated to Rust + Lean4", "10 sovereign fingerprints injected", "WORM chain anchored"],
+      "wormSeal": "d31b8dc0-worm-f4",
+      "duration": "2s",
+      "ts": "2026-06-19T03:08:58Z",
+      "status": "RESURRECTED"
+    },
+    {
+      "repo": "the-49th-call",
+      "url": "https://github.com/SNAPKITTYWEST/the-49th-call",
+      "description": "ERE v1.0 — Enochian corpus decode across 9 languages",
+      "language": "Prolog",
+      "files": 7,
+      "lines": 1111,
+      "filesWatermarked": 2,
+      "probabilisticErrors": 0,
+      "fixed": ["Cross-language sync", "Sovereign fingerprint injected", "WORM chain anchored"],
+      "wormSeal": "041a38b4-worm-f2",
+      "duration": "1m 04s",
+      "ts": "2026-06-19T03:00:19Z",
+      "status": "RESURRECTED"
+    }
+  ]
+}

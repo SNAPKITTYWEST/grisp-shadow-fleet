@@ -419,6 +419,86 @@ body::after {
   box-shadow: 0 0 20px rgba(239,68,68,0.15);
 }
 
+.resurrections-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--green);
+  box-shadow: var(--glow-green);
+}
+.res-count {
+  font-size: 9px;
+  color: var(--green);
+  letter-spacing: 1px;
+  font-family: monospace;
+}
+.res-card {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  animation: fadein 0.4s ease;
+}
+.res-card:last-child { border-bottom: none; }
+.res-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.res-repo {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  letter-spacing: 1px;
+  text-decoration: none;
+}
+.res-repo:hover { color: var(--green-bright); }
+.res-badge {
+  font-size: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--green);
+  color: var(--green);
+  letter-spacing: 1.5px;
+}
+.res-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.res-stat { text-align: center; }
+.res-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cyan);
+  font-family: monospace;
+  display: block;
+}
+.res-stat-label {
+  font-size: 8px;
+  color: var(--text-faint);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.res-fixed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.res-fix-tag {
+  font-size: 8px;
+  color: var(--green);
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.2);
+  padding: 1px 6px;
+  letter-spacing: 0.5px;
+}
+.res-seal {
+  font-size: 9px;
+  color: var(--text-faint);
+  font-family: monospace;
+}
+.res-seal span { color: var(--purple-bright); }
+
 .principles-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1493,6 +1573,16 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
         </div>
       </div>
 
+      <!-- LIVE RESURRECTIONS FEED -->
+      <div class="resurrections-panel" id="resurrections-panel">
+        <div class="panel-header">
+          <div class="panel-dot dot-green"></div>
+          <div class="panel-title-text">⚰ Latest Resurrections — Live</div>
+          <span class="res-count" id="res-count">loading...</span>
+        </div>
+        <div id="res-feed"></div>
+      </div>
+
       <div class="principles-panel">
         <div class="panel-header">
           <div class="panel-dot dot-red"></div>
@@ -1750,6 +1840,7 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
 
   // Simulate demo tick stream until real WebSocket connects
   let demoTick = 0
+  let wsLive = false
   const DEMO_STATES = [
     ['VERIFIED','UPDATED','IDLE','IDLE'],
     ['VERIFIED','UPDATED','TRANSLATED','WATERMARKED'],
@@ -1759,6 +1850,7 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
   const AGENT_NAMES = ['icp-verifier','metric-stream','bifrost-translator','watermark']
 
   function demoTick_() {
+    if (wsLive) return
     demoTick++
     const states = DEMO_STATES[(demoTick - 1) % DEMO_STATES.length]
     ingestTick({
@@ -1788,7 +1880,10 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
     try {
       const ws = new WebSocket('ws://localhost:7777')
       ws.onmessage = (e) => {
-        try { ingestTick(JSON.parse(e.data)) } catch {}
+        try {
+          wsLive = true
+          ingestTick(JSON.parse(e.data))
+        } catch {}
       }
       ws.onerror = () => {} // fallback to demo
     } catch {}
@@ -1799,6 +1894,39 @@ footer a:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
   tryFetchMetrics()
   setTimeout(demoTick_, 2500)
   setInterval(demoTick_, 7000)
+})();
+
+// ── RESURRECTIONS FEED ──
+(function(){
+  function timeSince(ts) {
+    const d = Math.floor((Date.now() - new Date(ts)) / 1000)
+    if (d < 60) return d + 's ago'
+    if (d < 3600) return Math.floor(d/60) + 'm ago'
+    return Math.floor(d/3600) + 'h ago'
+  }
+  function renderFeed(data) {
+    const feed = document.getElementById('res-feed')
+    const count = document.getElementById('res-count')
+    if (!feed || !data?.feed) return
+    count.textContent = data.feed.length + ' RESURRECTIONS'
+    feed.innerHTML = data.feed.map(r => `
+      <div class="res-card">
+        <div class="res-header">
+          <a class="res-repo" href="${r.url}" target="_blank">${r.repo}</a>
+          <span class="res-badge">${r.status}</span>
+        </div>
+        <div class="res-stats">
+          <div class="res-stat"><span class="res-stat-val">${r.lines.toLocaleString()}</span><span class="res-stat-label">lines</span></div>
+          <div class="res-stat"><span class="res-stat-val">${r.files}</span><span class="res-stat-label">files</span></div>
+          <div class="res-stat"><span class="res-stat-val">${r.filesWatermarked}</span><span class="res-stat-label">watermarked</span></div>
+          <div class="res-stat"><span class="res-stat-val">${r.probabilisticErrors}</span><span class="res-stat-label">errors</span></div>
+        </div>
+        <div class="res-fixed">${(r.fixed||[]).map(f=>`<span class="res-fix-tag">✓ ${f}</span>`).join('')}</div>
+        <div class="res-seal">WORM · <span>${r.wormSeal}</span> · ${timeSince(r.ts)}</div>
+      </div>
+    `).join('')
+  }
+  fetch('./public/resurrections.json').then(r=>r.json()).then(renderFeed).catch(()=>{})
 })();
 
 // ── STARS ──

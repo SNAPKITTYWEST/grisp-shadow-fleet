@@ -14,7 +14,9 @@
     "agent:icp:watch": "node agents/icp-verifier.mjs --interval 30000",
     "agents:all":      "npm run agent:icp && npm run agent:metrics",
     "orchestrate":     "node agents/orchestrate.mjs",
-    "orchestrate:once":"node agents/orchestrate.mjs --once"
+    "orchestrate:once":"node agents/orchestrate.mjs --once",
+    "resurrect":       "node agents/resurrect.mjs --repo",
+    "resurrect:dry":   "node agents/resurrect.mjs --dry-run --repo"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

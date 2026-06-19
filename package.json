@@ -6,7 +6,13 @@
     "build": "tsc",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "start": "node dist/main.js",
-    "demo": "node --loader ts-node/esm main.ts"
+    "demo": "node --loader ts-node/esm main.ts",
+    "agent:metrics":   "node agents/metric-stream.mjs",
+    "agent:watermark": "node agents/watermark.mjs --target .",
+    "agent:bifrost":   "node agents/bifrost-translator.mjs --source",
+    "agent:icp":       "node agents/icp-verifier.mjs --once",
+    "agent:icp:watch": "node agents/icp-verifier.mjs --interval 30000",
+    "agents:all":      "npm run agent:icp && npm run agent:metrics"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

@@ -139,6 +139,23 @@ SLEEP → RISE → ROAM → ICP → HUNT → SEAL
 
 <br/>
 
+## ⚰ Shadow Network
+
+| Repo | Platform | Live Page |
+|------|----------|-----------|
+| [grisp-shadow-fleet](https://github.com/SNAPKITTYWEST/grisp-shadow-fleet) | GitHub | [Live ↗](https://snapkittywest.github.io/grisp-shadow-fleet/) |
+| [shadow-orchestrator](https://gitlab.com/ahmad-parr-dev1-group/shadow-orchestrator) | GitLab | [RANSOM.WORM ↗](https://ahmad-parr-dev1-group.gitlab.io/shadow-orchestrator/) |
+| [saint-errant](https://gitlab.com/ahmad-parr-dev1-group/saint-errant) | GitLab | Shadow agent |
+| [sovereign-emulator](https://github.com/SNAPKITTYWEST/sovereign-emulator) | GitHub | [Live ↗](https://snapkittywest.github.io/sovereign-emulator/) |
+| [bob-reasoning-engine](https://github.com/SNAPKITTYWEST/SNAPKITTYWEST/tree/main/bob-reasoning-engine) | GitHub | Engine |
+| [all-apl](https://github.com/SNAPKITTYWEST/all-apl) | GitHub | INTERCOL · Prior Art |
+
+The GitLab shadow repos mirror the GitHub graveyard chain.  
+GitHub → public stage. GitLab → sovereign ledger.  
+Both sealed. Both WORM-anchored. One chain.
+
+<br/>
+
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ░                                                                 ░

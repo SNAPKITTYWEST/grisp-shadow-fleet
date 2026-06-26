@@ -165,3 +165,5 @@ Both sealed. Both WORM-anchored. One chain.
 ░                                                                 ░
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+![](https://sovereign-analytics.snapkittywest.workers.dev/canary/grisp-shadow-fleet)

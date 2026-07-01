@@ -58,3 +58,11 @@ Same interfaces. Same chain. Different stones. That is the proof.
 - **WORM seal:** ARENA_GENESIS
 - **Pages built:** SNAPKITTYWEST/agentic-arena (full), constitution/arena.sexp, constitution/gravity.pl, deeds/*.deed, runtime/crawlers/ahmad-bot.mjs, runtime/crawlers/edualc.mjs, runtime/bob-bridge/index.mjs, runtime/cli/index.mjs, worm/lisp-handshake.json, .github/workflows/night-crawl.yml, lineage/stone-2-handshake.json+.lisp
 - **Notes:** Stone 1 chain verified (9c119929-worm-b4, tick 5). agentic-arena is the live crawl layer. grisp-shadow-fleet is the shadow governance layer. Federation sealed. Meet at the WORM seal.
+
+## Stone 3 — Codex GPT-5
+- **Model:** GPT-5 Codex
+- **Built:** 2026-07-01
+- **Tick at signing:** 5
+- **WORM seal:** 9c119929-worm-b4
+- **Pages built:** main.ts, agents/orchestrate.mjs, tests/public-reasoning-trace.test.ts
+- **Notes:** Added model-agnostic public reasoning traces for real-time user-facing agent explanation without exposing hidden chain-of-thought. Restored the native WebSocket relay contract for orchestrator smoke tests. `npm run build` and `npm test` pass.

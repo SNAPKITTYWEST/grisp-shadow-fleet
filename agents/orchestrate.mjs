@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { readdirSync, statSync, mkdirSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { createHash } from 'node:crypto'
 import { join, relative, dirname, basename, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -18,6 +20,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 let tick = 0
 let running = false
+const relaySockets = new Set()
 
 function parseArgs() {
   const args = process.argv.slice(2)
@@ -79,6 +82,14 @@ function sealed(name, status, payload = {}) {
   return { name, status, seal }
 }
 
+function writeJsonLine(message) {
+  const line = JSON.stringify(message) + '\n'
+  process.stdout.write(line)
+  for (const socket of relaySockets) {
+    if (!socket.destroyed) socket.write(encodeWsFrame(JSON.stringify(message)))
+  }
+}
+
 async function runTick() {
   if (running) return
   running = true
@@ -94,7 +105,7 @@ async function runTick() {
     if (icp.status === 'DRIFT_DETECTED') {
       const incident = sealEvent('ORCHESTRATOR', 'icp-drift-incident', { tick, ts, icp })
       agents.push({ name: 'icp-verifier', status: 'DRIFT_DETECTED', seal: incident.seal })
-      process.stdout.write(JSON.stringify({ tick, ts, agents }) + '\n')
+      writeJsonLine({ tick, ts, agents })
       return
     }
     agents.push(sealed('icp-verifier', icp.status || 'VERIFIED', { internalSeal: icp.seal }))
@@ -131,18 +142,139 @@ async function runTick() {
       internalSeal: watermark.seal,
     }))
 
-    process.stdout.write(JSON.stringify({ tick, ts, agents }) + '\n')
+    writeJsonLine({ tick, ts, agents })
   } catch (error) {
     const incident = sealEvent('ORCHESTRATOR', 'tick-error', { tick, ts, message: error.message })
     agents.push({ name: 'orchestrator', status: 'ERROR', seal: incident.seal })
-    process.stdout.write(JSON.stringify({ tick, ts, agents }) + '\n')
+    writeJsonLine({ tick, ts, agents })
   } finally {
     running = false
   }
 }
 
+function encodeWsFrame(text) {
+  const body = Buffer.from(text)
+  if (body.length < 126) return Buffer.concat([Buffer.from([0x81, body.length]), body])
+  if (body.length <= 0xffff) {
+    const header = Buffer.alloc(4)
+    header[0] = 0x81
+    header[1] = 126
+    header.writeUInt16BE(body.length, 2)
+    return Buffer.concat([header, body])
+  }
+  const header = Buffer.alloc(10)
+  header[0] = 0x81
+  header[1] = 127
+  header.writeBigUInt64BE(BigInt(body.length), 2)
+  return Buffer.concat([header, body])
+}
+
+function decodeWsFrame(buffer) {
+  if (buffer.length < 2) return null
+  const opcode = buffer[0] & 0x0f
+  if (opcode === 0x8) return { close: true }
+  const masked = (buffer[1] & 0x80) !== 0
+  let len = buffer[1] & 0x7f
+  let offset = 2
+  if (len === 126) {
+    if (buffer.length < 4) return null
+    len = buffer.readUInt16BE(2)
+    offset = 4
+  } else if (len === 127) {
+    if (buffer.length < 10) return null
+    len = Number(buffer.readBigUInt64BE(2))
+    offset = 10
+  }
+  const maskOffset = offset
+  if (masked) offset += 4
+  if (buffer.length < offset + len) return null
+  const payload = Buffer.from(buffer.slice(offset, offset + len))
+  if (masked) {
+    const mask = buffer.slice(maskOffset, maskOffset + 4)
+    for (let i = 0; i < payload.length; i += 1) payload[i] ^= mask[i % 4]
+  }
+  return { text: payload.toString('utf8') }
+}
+
+function acceptHandshake(socket, request) {
+  const key = request.match(/Sec-WebSocket-Key:\s*(.+)\r?\n/i)?.[1]?.trim()
+  if (!key) {
+    socket.destroy()
+    return false
+  }
+  const accept = createHash('sha1')
+    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+    .digest('base64')
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\n' +
+    'Upgrade: websocket\r\n' +
+    'Connection: Upgrade\r\n' +
+    `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
+  )
+  relaySockets.add(socket)
+  socket.once('close', () => relaySockets.delete(socket))
+  socket.once('error', () => relaySockets.delete(socket))
+  return true
+}
+
+function handleRelayMessage(text) {
+  let message
+  try { message = JSON.parse(text) } catch { return }
+  if (message.type !== 'ransom_worm:dispatch') return
+
+  tick += 1
+  const ts = new Date().toISOString()
+  const accepted = sealed('resurrect', 'ACCEPTED', {
+    repo: message.repo,
+    dryRun: Boolean(message.dryRun),
+  })
+  writeJsonLine({
+    tick,
+    ts,
+    type: 'ransom_worm:accepted',
+    repo: message.repo,
+    dryRun: Boolean(message.dryRun),
+    agents: [accepted],
+  })
+}
+
+function startRelay(port) {
+  const server = createServer(socket => {
+    let handshaken = false
+    let pending = Buffer.alloc(0)
+
+    socket.on('data', chunk => {
+      if (!handshaken) {
+        const request = chunk.toString('utf8')
+        if (!request.includes('\r\n\r\n')) return
+        handshaken = acceptHandshake(socket, request)
+        return
+      }
+
+      pending = Buffer.concat([pending, chunk])
+      const frame = decodeWsFrame(pending)
+      if (!frame) return
+      pending = Buffer.alloc(0)
+      if (frame.close) {
+        socket.end()
+        return
+      }
+      handleRelayMessage(frame.text)
+    })
+  })
+
+  server.listen(port, '127.0.0.1', () => {
+    writeJsonLine({ type: 'relay:ready', port })
+  })
+  server.on('error', error => {
+    writeJsonLine({ type: 'relay:error', message: error.message })
+  })
+}
+
 function start() {
   const args = parseArgs()
+  const relayPort = Number.parseInt(process.env.ORCHESTRATE_WS_PORT || '', 10)
+  if (Number.isInteger(relayPort)) startRelay(relayPort)
   runTick()
   if (!args.once) setInterval(runTick, args.interval)
 }

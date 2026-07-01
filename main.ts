@@ -13,6 +13,69 @@ export interface TickResult {
   readonly wormEvent: WormEvent;
   readonly chainValid: boolean;
   readonly lastSeal: string;
+  readonly trace: ReadonlyArray<PublicReasoningTraceEvent>;
+}
+
+export type PublicReasoningTracePhase =
+  | 'RECEIVED'
+  | 'GOVERNANCE_CHECK'
+  | 'STATE_TRANSITION'
+  | 'WORM_SEAL'
+  | 'COMPLETE';
+
+export interface PublicReasoningTraceEvent {
+  readonly traceId: string;
+  readonly phase: PublicReasoningTracePhase;
+  readonly tick: number;
+  readonly agentId: string;
+  readonly actionId: string;
+  readonly summary: string;
+  readonly visibleToUser: true;
+  readonly timestamp: string;
+  readonly details?: Record<string, unknown>;
+}
+
+export type PublicReasoningTraceListener = (event: PublicReasoningTraceEvent) => void;
+
+export class PublicReasoningTrace {
+  private readonly events: PublicReasoningTraceEvent[] = [];
+  private readonly listeners = new Set<PublicReasoningTraceListener>();
+
+  subscribe(listener: PublicReasoningTraceListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  emit(
+    phase: PublicReasoningTracePhase,
+    action: IAction,
+    summary: string,
+    details: Record<string, unknown> = {},
+  ): PublicReasoningTraceEvent {
+    const event: PublicReasoningTraceEvent = {
+      traceId: `${action.actionId}:${phase}:${this.events.length}`,
+      phase,
+      tick: action.tick,
+      agentId: action.agentId,
+      actionId: action.actionId,
+      summary,
+      visibleToUser: true,
+      timestamp: new Date().toISOString(),
+      details,
+    };
+
+    this.events.push(event);
+    for (const listener of this.listeners) listener(event);
+    return event;
+  }
+
+  snapshot(): ReadonlyArray<PublicReasoningTraceEvent> {
+    return [...this.events];
+  }
+
+  clear(): void {
+    this.events.splice(0, this.events.length);
+  }
 }
 
 export class ShadowOrchestrator {
@@ -20,11 +83,13 @@ export class ShadowOrchestrator {
 
   readonly governance: GovernanceImpl;
   readonly workflow: IWorkflow_v1;
+  readonly trace: PublicReasoningTrace;
 
   constructor(opts: {
     state?: StateImpl;
     governance?: GovernanceImpl;
     workflow?: IWorkflow_v1;
+    trace?: PublicReasoningTrace;
   } = {}) {
     this.currentState = opts.state ?? StateImpl.genesis();
     this.governance = opts.governance ?? new GovernanceImpl(
@@ -44,6 +109,7 @@ export class ShadowOrchestrator {
     this.workflow = opts.workflow ?? new WorkflowImpl(new Map([
       ['mock-llm', new MockLLMNode('mock-llm', 'Mock LLM', [], { result: 'model-invariant mock output' })],
     ]));
+    this.trace = opts.trace ?? new PublicReasoningTrace();
   }
 
   get state(): IState_v1 {
@@ -51,14 +117,46 @@ export class ShadowOrchestrator {
   }
 
   tick(action: IAction): TickResult {
+    const traceStart = this.trace.snapshot().length;
+
+    this.trace.emit('RECEIVED', action, 'Action received by Shadow Orchestrator.', {
+      actionType: action.type,
+    });
+
     const verdict = this.governance.evaluate(action, this.currentState);
+
+    this.trace.emit('GOVERNANCE_CHECK', action, `Governance returned ${verdict.kind}.`, {
+      verdict: verdict.kind,
+      reason: verdict.reason,
+    });
 
     if (verdict.kind === 'ALLOW') {
       this.currentState = this.currentState.transition(action);
+      this.trace.emit('STATE_TRANSITION', action, 'State transition applied.', {
+        stateId: this.currentState.id,
+        stateTick: this.currentState.tick,
+      });
+    } else {
+      this.trace.emit('STATE_TRANSITION', action, 'State transition blocked by governance.', {
+        stateId: this.currentState.id,
+        verdict: verdict.kind,
+      });
     }
 
     const wormEvent = appendEvent(action, this.currentState, verdict.kind);
     const chainCheck = verifyChain();
+    const lastSeal = getLastSeal();
+
+    this.trace.emit('WORM_SEAL', action, 'Action verdict sealed to WORM chain.', {
+      eventIndex: wormEvent.index,
+      seal: lastSeal,
+      chainValid: chainCheck.valid,
+    });
+
+    this.trace.emit('COMPLETE', action, 'Public reasoning trace complete.', {
+      finalVerdict: verdict.kind,
+      chainValid: chainCheck.valid,
+    });
 
     return {
       action,
@@ -66,7 +164,8 @@ export class ShadowOrchestrator {
       state: this.currentState,
       wormEvent,
       chainValid: chainCheck.valid,
-      lastSeal: getLastSeal(),
+      lastSeal,
+      trace: this.trace.snapshot().slice(traceStart),
     };
   }
 }
@@ -106,6 +205,10 @@ export async function runDemo(): Promise<TickResult[]> {
       stateId: result.state.id,
       wormSeal: result.lastSeal,
       chainValid: result.chainValid,
+      trace: result.trace.map(event => ({
+        phase: event.phase,
+        summary: event.summary,
+      })),
     }));
   }
 

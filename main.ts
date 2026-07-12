@@ -4,6 +4,7 @@ import { appendEvent, verifyChain, getLastSeal, type WormEvent } from './pages/0
 import { StateImpl } from './pages/01-state/index.js';
 import { GovernanceImpl, CapabilityValidator, crisisLanguageDeny } from './pages/02-governance/index.js';
 import { WorkflowImpl, MockLLMNode } from './pages/03-workflow/index.js';
+import { kernelIntercept, type KernelResult } from './pages/04-kernel-intercept/index.js';
 import type { IAction, IState_v1, IVerdict, IWorkflow_v1 } from './abstract/interfaces/index.js';
 
 export interface TickResult {
@@ -19,6 +20,7 @@ export interface TickResult {
 export type PublicReasoningTracePhase =
   | 'RECEIVED'
   | 'GOVERNANCE_CHECK'
+  | 'KERNEL_INTERCEPT'   // ← NEW: pattern-match reasoning → kernel dispatch
   | 'STATE_TRANSITION'
   | 'WORM_SEAL'
   | 'COMPLETE';
@@ -130,11 +132,35 @@ export class ShadowOrchestrator {
       reason: verdict.reason,
     });
 
+    // ── KERNEL INTERCEPT ───────────────────────────────────────────────────────
+    // Pattern-match the action's reasoning against the kernel registry.
+    // If matched, the kernel handles computation — the agent only translates.
+    let kernelResult: KernelResult = { routed: false }
+    if (verdict.kind === 'ALLOW') {
+      kernelResult = kernelIntercept.evaluate(action, this.currentState)
+      const kernelVerdict = kernelIntercept.buildKernelVerdict(kernelResult, action)
+      this.trace.emit('KERNEL_INTERCEPT', action,
+        kernelResult.routed
+          ? `Kernel intercepted: ${kernelResult.route?.kernel}.${kernelResult.route?.action} [${kernelResult.route?.domain}]`
+          : 'No kernel intercept — reasoning passed through to agent.',
+        {
+          routed:  kernelResult.routed,
+          kernel:  kernelResult.route?.kernel,
+          action:  kernelResult.route?.action,
+          domain:  kernelResult.route?.domain,
+          matched: kernelResult.route?.matched,
+          reason:  kernelVerdict.reason,
+        }
+      )
+    }
+
     if (verdict.kind === 'ALLOW') {
       this.currentState = this.currentState.transition(action);
       this.trace.emit('STATE_TRANSITION', action, 'State transition applied.', {
-        stateId: this.currentState.id,
-        stateTick: this.currentState.tick,
+        stateId:        this.currentState.id,
+        stateTick:      this.currentState.tick,
+        kernelRouted:   kernelResult.routed,
+        kernelDomain:   kernelResult.route?.domain,
       });
     } else {
       this.trace.emit('STATE_TRANSITION', action, 'State transition blocked by governance.', {

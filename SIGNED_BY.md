@@ -82,3 +82,11 @@ Same interfaces. Same chain. Different stones. That is the proof.
 - **WORM seal:** 9c119929-worm-b4
 - **Pages built:** agents/orchestrate.mjs, tests/orchestrate.smoke.test.ts
 - **Notes:** Repaired the relay smoke test for Windows by binding the relay to an OS-assigned port and reporting the actual bound port. Verified with `npm test`, `npm run build`, and the five-tick demo run.
+
+## Stone 6 — Codex GPT-5
+- **Model:** GPT-5 Codex
+- **Built:** 2026-07-16
+- **Tick at signing:** 5
+- **WORM seal:** 9c119929-worm-b4
+- **Pages built:** agents/orchestrate.mjs, governance/shadow-orchestrator.pl, tests/tau-governance.test.ts, package.json, package-lock.json, README.md
+- **Notes:** Moved swarm dispatch and status decisions into a Tau Prolog governance rulebook while preserving the typed TypeScript page runtime and WebSocket relay contract. Verified with `npm run verify`, `npm audit`, and the five-tick demo run.

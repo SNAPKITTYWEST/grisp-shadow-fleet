@@ -111,6 +111,9 @@ The chain remembers. The seal is immutable. The graveyard record is permanent.
 
 ## ⚡ Commands
 
+The swarm decision table lives in `governance/shadow-orchestrator.pl`.
+Node handles filesystem and WebSocket IO; Tau Prolog owns dispatch and status gates.
+
 ```bash
 # Start the orchestration loop (feeds the live world stage)
 node agents/orchestrate.mjs

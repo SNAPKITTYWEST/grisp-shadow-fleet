@@ -264,7 +264,9 @@ function startRelay(port) {
   })
 
   server.listen(port, '127.0.0.1', () => {
-    writeJsonLine({ type: 'relay:ready', port })
+    const address = server.address()
+    const boundPort = typeof address === 'object' && address ? address.port : port
+    writeJsonLine({ type: 'relay:ready', port: boundPort })
   })
   server.on('error', error => {
     writeJsonLine({ type: 'relay:error', message: error.message })

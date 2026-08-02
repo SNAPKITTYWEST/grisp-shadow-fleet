@@ -1,4 +1,5 @@
 node_modules/
 dist/
+_site/
 npm-debug.log*
 .watermark-key.json

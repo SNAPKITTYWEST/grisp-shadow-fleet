@@ -269,12 +269,17 @@ export class UIHUD {
         .hud-location { order: 3; grid-column: 1 / -1; justify-self: stretch; padding: 6px 0 0; text-align: left; }
         .hud-status-right .hud-chip:nth-child(n+3) { display: none; }
         .hud-objective { top: 91px; left: 15px; width: calc(100vw - 30px); }
-        .hud-telemetry { left: 15px; bottom: 142px; width: calc(100vw - 30px); grid-template-columns: repeat(4, 1fr); }
+        .hud-telemetry { left: 15px; bottom: 160px; width: calc(100vw - 30px); grid-template-columns: repeat(4, 1fr); }
         .hud-reading { min-width: 0; padding: 6px; }
         .hud-reading strong { font-size: 11px; }
         .hud-commandbar { top: 141px; right: 15px; bottom: auto; }
         .hud-commandbar .hud-mini { display: none; }
         .hud-panel { top: 188px; right: 15px; left: 15px; bottom: 136px; width: auto; }
+      }
+      @media (max-width: 430px) {
+        .hud-brand-name { font-size: 12px; }
+        .hud-brand-sub { font-size: 7px; margin-top: 3px; }
+        .hud-status-right .hud-chip:nth-child(n+2) { display: none; }
       }
       @media (pointer: coarse), (hover: none) {
         #mobile-controls { position: absolute; inset: 0; display: block; pointer-events: none; touch-action: none; }

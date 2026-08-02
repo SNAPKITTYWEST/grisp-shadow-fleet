@@ -446,7 +446,7 @@ const buildHudSnapshot = (): HudSnapshot => {
     npcCount: state.npcs.length,
     agentCount: state.agents.length,
     missionCount: state.missions.length,
-    oxygen: state.player.suit.equipped ? Math.max(0, Math.min(100, state.player.suit.oxygenSeconds / suitCapacity * 100)) : 0,
+    oxygen: Math.max(0, Math.min(100, state.player.suit.oxygenSeconds / suitCapacity * 100)),
     integrity: state.player.suit.integrity * 100,
     suited: state.player.suit.equipped && state.player.suit.sealed,
     magneticBoots: state.player.suit.magneticBoots,

@@ -138,6 +138,35 @@ interface CitizenVisual {
   route: number;
 }
 
+interface SnapKittyCatVisual {
+  group: THREE.Group;
+  /** Full armored cat character */
+  torso: THREE.Group;
+  head: THREE.Group;
+  leftArm: THREE.Group;
+  rightArm: THREE.Group;
+  leftLeg: THREE.Group;
+  rightLeg: THREE.Group;
+  tail: THREE.Group;
+  visor: THREE.Mesh;
+  helmetCam: THREE.Group;
+  /** Current world-space patrol path */
+  waypoints: THREE.Vector3[];
+  waypointIndex: number;
+  /** Animation phase accumulators */
+  walkPhase: number;
+  idlePhase: number;
+  tailPhase: number;
+  /** Are we patrolling or interacting? */
+  mode: 'patrol' | 'interact' | 'idle';
+  interactTimer: number;
+  /** Agent group this cat is currently talking to */
+  targetAgent: THREE.Group | null;
+  /** Player color scheme: 'magenta' or 'cyan' */
+  color: 'magenta' | 'cyan';
+  speed: number;
+}
+
 interface TrafficVisual {
   group: THREE.Group;
   center: THREE.Vector3;
@@ -239,6 +268,7 @@ export class GameRenderer {
   private readonly interactions: WorldInteraction[] = [];
   private readonly citizens: CitizenVisual[] = [];
   private readonly agents: THREE.Group[] = [];
+  private readonly snapKittyCats: SnapKittyCatVisual[] = [];
   private readonly traffic: TrafficVisual[] = [];
   private readonly lifeforms: THREE.Group[] = [];
   private readonly animatedGlyphs: THREE.Mesh[] = [];
@@ -678,6 +708,7 @@ export class GameRenderer {
     this.updateElevator(delta);
     this.updateDoors(delta);
     this.updateCitizens(delta);
+    this.updateSnapKittyCats(delta);
     this.updateTraffic();
     this.updateWorldAnimation(delta);
     this.updatePlanetWeather(delta);
@@ -1134,6 +1165,326 @@ export class GameRenderer {
     this.pitch = THREE.MathUtils.clamp(this.pitch - y * sensitivity, -Math.PI * 0.48, Math.PI * 0.48);
   }
 
+  private buildSnapKittyCat(color: 'magenta' | 'cyan', startZ: number): SnapKittyCatVisual {
+    const primary  = color === 'magenta' ? 0xe8008a : 0x00aadd;
+    const visorHex = color === 'magenta' ? 0xff88cc : 0x44ddff;
+    const furHex   = color === 'magenta' ? 0xe07020 : 0x222222;
+    const earInner = color === 'magenta' ? 0xff88aa : 0xff88aa;
+    const tailTip  = color === 'magenta' ? 0xffffff : 0xffffff;
+    const armorMat  = new THREE.MeshStandardMaterial({ color: primary,  roughness: 0.25, metalness: 0.6 });
+    const furMat    = new THREE.MeshStandardMaterial({ color: furHex,   roughness: 0.95, metalness: 0.0 });
+    const whiteFur  = new THREE.MeshStandardMaterial({ color: 0xf5f0ee, roughness: 0.95, metalness: 0.0 });
+    const innerFur  = new THREE.MeshStandardMaterial({ color: earInner, roughness: 0.95, metalness: 0.0 });
+    const metalMat  = new THREE.MeshStandardMaterial({ color: 0x888ea0, roughness: 0.35, metalness: 0.9 });
+    const darkMat   = new THREE.MeshStandardMaterial({ color: 0x1a1c22, roughness: 0.6,  metalness: 0.5 });
+    const visorMat  = new THREE.MeshStandardMaterial({ color: visorHex, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.82, emissive: visorHex, emissiveIntensity: 0.4 });
+    const tailTipMat = new THREE.MeshStandardMaterial({ color: tailTip, roughness: 0.95 });
+
+    const root = new THREE.Group();
+    root.name = `SnapKitty user ${color}`;
+
+    // ── TORSO ──────────────────────────────────────────────────────────────────
+    const torso = new THREE.Group();
+    const torsoBody = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.62, 0.38), armorMat);
+    torsoBody.position.y = 0.85;
+    torsoBody.castShadow = true;
+    // chest plate
+    const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.06), metalMat);
+    chestPlate.position.set(0, 0.92, -0.22);
+    // chest emblem (SK logo shape — V notch)
+    const emblem = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.02), armorMat);
+    emblem.position.set(0, 0.90, -0.26);
+    // belt
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.07, 0.4), darkMat);
+    belt.position.y = 0.57;
+    // belt buckle
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.05), metalMat);
+    buckle.position.set(0, 0.57, -0.22);
+    torso.add(torsoBody, chestPlate, emblem, belt, buckle);
+
+    // ── HEAD ──────────────────────────────────────────────────────────────────
+    const head = new THREE.Group();
+    head.position.y = 1.52;
+    // skull + snout
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 9), color === 'magenta' ? furMat : whiteFur);
+    skull.scale.y = 1.05;
+    const snoutBase = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 6), whiteFur);
+    snoutBase.position.set(0, -0.05, -0.17);
+    snoutBase.scale.set(1, 0.7, 0.85);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), new THREE.MeshStandardMaterial({ color: 0xff7799 }));
+    nose.position.set(0, -0.02, -0.27);
+    // helmet (gray band around skull)
+    const helmet = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.05, 6, 18), metalMat);
+    helmet.rotation.x = Math.PI * 0.5;
+    helmet.position.y = 0.05;
+    // side ear-cups
+    const leftCup  = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.09, 10), metalMat);
+    leftCup.position.set( 0.21, 0.05, 0); leftCup.rotation.z = Math.PI * 0.5;
+    const rightCup = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.09, 10), metalMat);
+    rightCup.position.set(-0.21, 0.05, 0); rightCup.rotation.z = -Math.PI * 0.5;
+    // visor (oval shield)
+    const visorShape = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), visorMat);
+    visorShape.position.set(0, -0.03, -0.16);
+    visorShape.rotation.x = 0.35;
+    visorShape.scale.set(1.1, 0.7, 0.5);
+    // helmet camera (top right of helmet)
+    const helmetCam = new THREE.Group();
+    const camBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.055, 0.075), darkMat);
+    const camLens = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.025, 8), metalMat);
+    camLens.rotation.x = Math.PI * 0.5; camLens.position.z = -0.05;
+    const camGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.01, 8), visorMat);
+    camGlass.rotation.x = Math.PI * 0.5; camGlass.position.z = -0.065;
+    helmetCam.add(camBody, camLens, camGlass);
+    helmetCam.position.set(0.12, 0.16, -0.07);
+    // cat ears (pointed triangular, above helmet)
+    function makeCatEar(side: 1 | -1, outerColor: THREE.Material, innerColor: THREE.Material): THREE.Group {
+      const ear = new THREE.Group();
+      const outer = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.19, 4), outerColor);
+      outer.rotation.z = side * 0.25;
+      outer.rotation.x = -0.15;
+      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.13, 4), innerColor);
+      inner.rotation.z = side * 0.25; inner.rotation.x = -0.15;
+      inner.position.set(0, 0.01, -0.01);
+      ear.add(outer, inner);
+      ear.position.set(side * 0.12, 0.24, -0.02);
+      return ear;
+    }
+    const leftEar  = makeCatEar( 1, furMat, innerFur);
+    const rightEar = makeCatEar(-1, furMat, innerFur);
+    head.add(skull, snoutBase, nose, helmet, leftCup, rightCup, visorShape, helmetCam, leftEar, rightEar);
+
+    // ── ARMS ──────────────────────────────────────────────────────────────────
+    function makeArm(side: 1 | -1): THREE.Group {
+      const arm = new THREE.Group();
+      arm.position.set(side * 0.35, 1.12, 0);
+      // shoulder armor
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), metalMat);
+      shoulder.position.set(0, 0.06, 0);
+      // upper arm
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.07, 0.28, 8), armorMat);
+      upper.position.y = -0.14;
+      // elbow joint
+      const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.065, 7, 5), metalMat);
+      elbow.position.y = -0.30;
+      // forearm
+      const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.07, 0.26, 8), metalMat);
+      fore.position.y = -0.44;
+      // armor panel on forearm
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.04), armorMat);
+      panel.position.set(0, -0.44, -0.08);
+      // gloved fist
+      const fist = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.1), darkMat);
+      fist.position.y = -0.60;
+      arm.add(shoulder, upper, elbow, fore, panel, fist);
+      return arm;
+    }
+    const leftArm  = makeArm( 1);
+    const rightArm = makeArm(-1);
+
+    // ── LEGS ──────────────────────────────────────────────────────────────────
+    function makeLeg(side: 1 | -1): THREE.Group {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.17, 0.54, 0);
+      // thigh armor
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.09, 0.29, 8), armorMat);
+      thigh.position.y = -0.14;
+      // knee
+      const knee = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), metalMat);
+      knee.position.y = -0.32;
+      // shin
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.085, 0.26, 8), metalMat);
+      shin.position.y = -0.46;
+      // boot
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.22), darkMat);
+      boot.position.set(0, -0.65, -0.03);
+      // boot toe fur (fluffy look)
+      const toeFur = new THREE.Mesh(new THREE.SphereGeometry(0.065, 7, 5), color === 'magenta' ? furMat : whiteFur);
+      toeFur.scale.set(1.2, 0.6, 1.3);
+      toeFur.position.set(0, -0.68, -0.10);
+      leg.add(thigh, knee, shin, boot, toeFur);
+      return leg;
+    }
+    const leftLeg  = makeLeg( 1);
+    const rightLeg = makeLeg(-1);
+
+    // ── TAIL ──────────────────────────────────────────────────────────────────
+    const tail = new THREE.Group();
+    tail.position.set(color === 'magenta' ? -0.14 : -0.14, 0.62, 0.18);
+    // 4-segment articulated tail (base → mid → end → tip)
+    function addTailSeg(parent: THREE.Group, radius: number, len: number, mat: THREE.Material, localY: number): THREE.Group {
+      const seg = new THREE.Group();
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.1, len, 7), mat);
+      mesh.position.y = localY;
+      seg.add(mesh);
+      parent.add(seg);
+      return seg;
+    }
+    // alternate stripes: primary color and tip white
+    const seg1 = addTailSeg(tail,  0.07, 0.20, armorMat,  0.10);
+    const seg2 = addTailSeg(seg1,  0.065, 0.18, furMat,   0.18);
+    const seg3 = addTailSeg(seg2,  0.055, 0.16, armorMat, 0.16);
+    const seg4 = addTailSeg(seg3,  0.04,  0.14, tailTipMat, 0.14);
+    // initial angles
+    seg1.rotation.z =  0.5;
+    seg2.rotation.z =  0.35;
+    seg3.rotation.z =  0.25;
+    seg4.rotation.z =  0.15;
+
+    // ── ASSEMBLE ───────────────────────────────────────────────────────────────
+    root.add(torso);
+    root.add(head);
+    root.add(leftArm);
+    root.add(rightArm);
+    root.add(leftLeg);
+    root.add(rightLeg);
+    root.add(tail);
+
+    root.position.set(color === 'magenta' ? 1.8 : -1.8, 0, startZ);
+    root.castShadow = true;
+    this.station.add(root);
+
+    // Patrol waypoints between agent stations
+    const waypoints = color === 'magenta'
+      ? [ new THREE.Vector3( 1.8, 0,  18), new THREE.Vector3( 9.2, 0,  18), new THREE.Vector3( 9.2, 0,  7), new THREE.Vector3( 1.8, 0,  -4), new THREE.Vector3( 9.2, 0, -15), new THREE.Vector3( 1.8, 0, -26) ]
+      : [ new THREE.Vector3(-1.8, 0,  18), new THREE.Vector3(-9.2, 0,  18), new THREE.Vector3(-9.2, 0,   7), new THREE.Vector3(-1.8, 0,  -4), new THREE.Vector3(-9.2, 0, -15), new THREE.Vector3(-1.8, 0, -26) ];
+
+    return {
+      group: root, torso, head, leftArm, rightArm, leftLeg, rightLeg, tail,
+      visor: visorShape, helmetCam,
+      waypoints, waypointIndex: 0,
+      walkPhase: 0, idlePhase: color === 'magenta' ? 0 : Math.PI,
+      tailPhase: color === 'magenta' ? 0 : 1.2,
+      mode: 'idle', interactTimer: 0, targetAgent: null,
+      color, speed: color === 'magenta' ? 3.2 : 2.8,
+    };
+  }
+
+  private buildSnapKittyCats(): void {
+    const magenta = this.buildSnapKittyCat('magenta', 14);
+    const cyan    = this.buildSnapKittyCat('cyan',    10);
+    this.snapKittyCats.push(magenta, cyan);
+
+    // Interaction: talk to a SnapKitty user
+    for (const cat of this.snapKittyCats) {
+      this.interactions.push({
+        id: `snapkitty-user-${cat.color}`,
+        label: () => `Talk to SnapKitty user · ${cat.color === 'magenta' ? 'Kitty-M' : 'Kitty-C'}`,
+        position: cat.group.position.clone().add(new THREE.Vector3(0, 1.3, 0)),
+        radius: 3.2,
+        action: () => {
+          this.hud?.showPanel('dialogue');
+          this.notify(`SnapKitty user ${cat.color === 'magenta' ? 'Kitty-M (pink armor)' : 'Kitty-C (blue armor)'} connected`, 'success');
+        },
+      });
+    }
+  }
+
+  private updateSnapKittyCats(delta: number): void {
+    for (const cat of this.snapKittyCats) {
+      cat.idlePhase  += delta * 1.6;
+      cat.tailPhase  += delta * 1.9;
+      const idleBreath = Math.sin(cat.idlePhase) * 0.012;
+
+      if (cat.mode === 'idle') {
+        cat.interactTimer += delta;
+        // After 2.5 s idle, start patrolling
+        if (cat.interactTimer > 2.5) { cat.mode = 'patrol'; cat.interactTimer = 0; }
+        // Idle: gentle torso bob, tail sway
+        cat.torso.position.y = idleBreath;
+        cat.head.position.y  = 1.52 + idleBreath * 0.6;
+        cat.leftArm.rotation.x  =  Math.sin(cat.idlePhase * 0.5) * 0.06;
+        cat.rightArm.rotation.x = -Math.sin(cat.idlePhase * 0.5) * 0.06;
+
+      } else if (cat.mode === 'interact') {
+        cat.interactTimer += delta;
+        // Face the target agent
+        if (cat.targetAgent) {
+          const toAgent = cat.targetAgent.position.clone().sub(cat.group.position);
+          cat.group.rotation.y = Math.atan2(toAgent.x, toAgent.z);
+        }
+        // Nod head, gesture arm
+        cat.head.rotation.x  = -0.1 + Math.sin(cat.idlePhase * 2.2) * 0.08;
+        cat.rightArm.rotation.x = -0.55 + Math.sin(cat.idlePhase * 1.8) * 0.2;
+        cat.rightArm.rotation.z = -0.18 + Math.sin(cat.idlePhase * 1.4) * 0.08;
+        cat.torso.position.y = idleBreath;
+        // Visor glow pulse during interaction
+        const visorMat = cat.visor.material as THREE.MeshStandardMaterial;
+        visorMat.emissiveIntensity = 0.5 + Math.sin(cat.idlePhase * 3.0) * 0.35;
+        if (cat.interactTimer > 5.0) {
+          cat.mode = 'patrol';
+          cat.interactTimer = 0;
+          cat.targetAgent = null;
+          cat.head.rotation.x   = 0;
+          cat.rightArm.rotation.x = 0;
+          cat.rightArm.rotation.z = 0;
+          const visorM = cat.visor.material as THREE.MeshStandardMaterial;
+          visorM.emissiveIntensity = 0.4;
+        }
+
+      } else {
+        // PATROL: walk toward next waypoint
+        cat.walkPhase += delta * 4.5;
+        const target = cat.waypoints[cat.waypointIndex];
+        if (!target) { cat.mode = 'idle'; continue; }
+        const diff = target.clone().sub(cat.group.position);
+        diff.y = 0;
+        const dist = diff.length();
+
+        if (dist < 0.35) {
+          // Arrived at waypoint — check if an agent is nearby to interact with
+          cat.waypointIndex = (cat.waypointIndex + 1) % cat.waypoints.length;
+          const nearAgent = this.agents.find((ag) => {
+            const d = ag.position.distanceTo(cat.group.position);
+            return d < 5.5;
+          });
+          if (nearAgent && Math.random() < 0.55) {
+            cat.mode = 'interact';
+            cat.targetAgent = nearAgent;
+            cat.interactTimer = 0;
+          } else {
+            cat.mode = 'idle';
+            cat.interactTimer = 0;
+          }
+        } else {
+          // Walk
+          const dir = diff.normalize();
+          cat.group.position.addScaledVector(dir, cat.speed * delta);
+          cat.group.rotation.y = Math.atan2(dir.x, dir.z);
+          // walk cycle
+          const swing = Math.sin(cat.walkPhase) * 0.38;
+          cat.leftArm.rotation.x  =  swing;
+          cat.rightArm.rotation.x = -swing;
+          cat.leftLeg.rotation.x  = -swing * 0.85;
+          cat.rightLeg.rotation.x =  swing * 0.85;
+          cat.torso.position.y   = Math.abs(Math.sin(cat.walkPhase * 2)) * 0.022;
+          cat.head.rotation.x    = 0;
+        }
+      }
+
+      // Tail animation (always active, independent of mode)
+      const tailBase = cat.tail.children[0] as THREE.Group | undefined;
+      if (tailBase) {
+        cat.tail.rotation.z   = Math.sin(cat.tailPhase * 0.9)  *  0.42;
+        cat.tail.rotation.y   = Math.sin(cat.tailPhase * 1.1)  *  0.25;
+        const s1 = tailBase;
+        s1.rotation.z         = 0.5  + Math.sin(cat.tailPhase * 1.3) * 0.22;
+        const s2 = s1.children.find((c) => c instanceof THREE.Group) as THREE.Group | undefined;
+        if (s2) {
+          s2.rotation.z       = 0.35 + Math.sin(cat.tailPhase * 1.6) * 0.18;
+          const s3 = s2.children.find((c) => c instanceof THREE.Group) as THREE.Group | undefined;
+          if (s3) {
+            s3.rotation.z     = 0.25 + Math.sin(cat.tailPhase * 2.0) * 0.14;
+            const s4 = s3.children.find((c) => c instanceof THREE.Group) as THREE.Group | undefined;
+            if (s4) s4.rotation.z = 0.15 + Math.sin(cat.tailPhase * 2.5) * 0.10;
+          }
+        }
+      }
+
+      // Helmet cam pan (rotates slowly to scan)
+      cat.helmetCam.rotation.y = Math.sin(cat.idlePhase * 0.4) * 0.3;
+    }
+  }
+
   private buildPlayableUniverse(): void {
     this.buildStars();
     this.buildStationInterior();
@@ -1146,6 +1497,7 @@ export class GameRenderer {
     this.buildPopulation();
     this.buildAgents();
     this.buildTerminals();
+    this.buildSnapKittyCats();
   }
 
   private buildLighting(): void {

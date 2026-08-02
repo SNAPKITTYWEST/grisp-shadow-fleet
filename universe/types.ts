@@ -419,7 +419,7 @@ export interface NeedState {
 
 export interface RelationshipState {
   targetId: EntityId;
-  kind: 'family' | 'friend' | 'colleague' | 'rival' | 'command' | 'acquaintance';
+  kind: 'family' | 'friend' | 'colleague' | 'rival' | 'command' | 'acquaintance' | string;
   trust: number;
   affinity: number;
   conflict: number;
@@ -455,6 +455,39 @@ export interface LayeredBehaviorState {
   memoryBias: number;
 }
 
+export interface NpcPersonality {
+  traits: string[];
+  values: string[];
+  flaw: string;
+  /** OCEAN-mapped decay rates: 0.0 = min decay, 1.0 = max decay per field */
+  needDecayMod: {
+    nutrition: number;
+    rest: number;
+    safety: number;
+    belonging: number;
+    purpose: number;
+  };
+}
+
+export interface NpcVoiceStyle {
+  register: string;
+  cadence: string;
+  markers: string[];
+}
+
+export interface NpcReactionWeights {
+  promises: number;
+  theft: number;
+  combat: number;
+  rescues: number;
+  gifts: number;
+  betrayals: number;
+  negotiations: number;
+  contracts: number;
+  lies: number;
+  debts: number;
+}
+
 export interface NpcState {
   id: EntityId;
   name: string;
@@ -480,6 +513,15 @@ export interface NpcState {
   health: number;
   credits: number;
   lastUpdatedTick: number;
+  /** Canon character id this NPC was seeded from, if any */
+  canonCharacterId: EntityId | null;
+  /** OCEAN-derived personality used for need simulation */
+  personality: NpcPersonality;
+  voiceStyle: NpcVoiceStyle;
+  /** Trust deltas for different action categories (from canon dynamicReactions) */
+  reactionWeights: NpcReactionWeights;
+  /** SHA-256 WORM chain head — updated each time a social event is sealed */
+  wormHead: string;
 }
 
 export type AgentDomain =

@@ -29,15 +29,22 @@ export class PopulationSystem {
     return memory;
   }
 
-  recordPlayerAction(npcId: EntityId, action: string, trustDelta: number): CommandResult {
+  recordPlayerAction(npcId: EntityId, action: string, trustDelta: number, actionCategory?: string): CommandResult {
     const npc = this.getNpc(npcId);
     if (!npc.alive) return { ok: false, message: `${npc.name} is dead.`, eventIds: [] };
+    // Apply personality-based reaction weight if a category is specified
+    let effectiveDelta = trustDelta;
+    if (actionCategory && npc.reactionWeights) {
+      const weight = (npc.reactionWeights as unknown as Record<string, number>)[actionCategory];
+      if (typeof weight === 'number') effectiveDelta = trustDelta * (1 + weight);
+    }
     const existing = npc.trustValues[this.state.player.id] ?? 0;
-    npc.trustValues[this.state.player.id] = clamp(existing + trustDelta, -100, 100);
+    npc.trustValues[this.state.player.id] = clamp(existing + effectiveDelta, -100, 100);
     npc.playerReaction = this.reactionForTrust(npc.trustValues[this.state.player.id] as number);
-    this.remember(npc.id, this.state.player.id, action, clamp(trustDelta / 20, -1, 1), ['player-action']);
-    npc.behavior.immediateReaction = trustDelta < -10 ? 'seek safety and notify security' : trustDelta > 10 ? 'offer immediate assistance' : 'update social assessment';
-    const event = emitWorldEvent(this.state, 'npc-player-reaction', npc.id, this.state.player.id, `${npc.name} remembers: ${action}`, { severity: Math.abs(trustDelta) / 100, data: { trustDelta, reaction: npc.playerReaction } });
+    this.remember(npc.id, this.state.player.id, action, clamp(effectiveDelta / 20, -1, 1), ['player-action']);
+    this.sealSocialEvent(npc, actionCategory ?? 'player-action', this.state.player.id, action, clamp(effectiveDelta / 20, -1, 1));
+    npc.behavior.immediateReaction = effectiveDelta < -10 ? 'seek safety and notify security' : effectiveDelta > 10 ? 'offer immediate assistance' : 'update social assessment';
+    const event = emitWorldEvent(this.state, 'npc-player-reaction', npc.id, this.state.player.id, `${npc.name} remembers: ${action}`, { severity: Math.abs(effectiveDelta) / 100, data: { trustDelta: effectiveDelta, reaction: npc.playerReaction } });
     return { ok: true, message: event.summary, eventIds: [event.id] };
   }
 
@@ -66,12 +73,38 @@ export class PopulationSystem {
     rebuildRoomOccupants(this.state);
   }
 
+  sealSocialEvent(npc: NpcState, kind: string, withId: string, summary: string, weight: number): void {
+    const ts = this.state.tick;
+    const content = `${kind}:${withId}:${summary.slice(0, 64)}:${weight.toFixed(3)}:${ts}`;
+    const combined = npc.wormHead + content;
+    // Deterministic hex digest using a simple djb2-derived fold (no async crypto in simulation tick)
+    let h = 5381;
+    for (let i = 0; i < combined.length; i += 1) h = ((h << 5) + h) ^ (combined.codePointAt(i) ?? 0);
+    const seal = (h >>> 0).toString(16).padStart(8, '0').repeat(4).slice(0, 16).toUpperCase();
+    npc.wormHead = seal;
+    npc.memories.push({
+      id: `memory-${npc.id}-${ts}-${kind}`,
+      tick: ts,
+      subjectId: withId,
+      summary,
+      emotionalWeight: clamp(weight, -1, 1),
+      confidence: 1,
+      tags: [kind, 'social', 'worm-sealed'],
+    });
+    trimHistory(npc.memories, 64);
+  }
+
   private updateNeeds(npc: NpcState, elapsedHours: number): void {
-    npc.needs.rest = clamp(npc.needs.rest - elapsedHours * 2.8, 0, 100);
-    npc.needs.nutrition = clamp(npc.needs.nutrition - elapsedHours * 4.2, 0, 100);
-    npc.needs.belonging = clamp(npc.needs.belonging - elapsedHours * 0.6, 0, 100);
+    const dm = npc.personality?.needDecayMod;
+    const restDecay      = dm ? 2.8  * dm.rest      : 2.8;
+    const nutritionDecay = dm ? 4.2  * dm.nutrition  : 4.2;
+    const belongingDecay = dm ? 0.6  * dm.belonging  : 0.6;
+    npc.needs.rest      = clamp(npc.needs.rest      - elapsedHours * restDecay,      0, 100);
+    npc.needs.nutrition = clamp(npc.needs.nutrition - elapsedHours * nutritionDecay, 0, 100);
+    npc.needs.belonging = clamp(npc.needs.belonging - elapsedHours * belongingDecay, 0, 100);
     const room = this.state.rooms.find((candidate) => candidate.id === npc.currentLocationId);
-    npc.needs.safety = clamp(npc.needs.safety + elapsedHours * (room?.damage || !room?.environment.breathable ? -8 : 0.8), 0, 100);
+    const safetyDelta = room?.damage || !room?.environment.breathable ? -8 : 0.8;
+    npc.needs.safety = clamp(npc.needs.safety + elapsedHours * safetyDelta, 0, 100);
     if (npc.currentLocationId === npc.homeLocationId) npc.needs.rest = clamp(npc.needs.rest + elapsedHours * 10, 0, 100);
     if (npc.currentLocationId === 'room-galley') npc.needs.nutrition = clamp(npc.needs.nutrition + elapsedHours * 18, 0, 100);
     if (npc.health < 40 && npc.currentLocationId !== 'room-medical') {
@@ -121,6 +154,10 @@ export class PopulationSystem {
     active.status = 'completed';
     if (active.kind.includes('rest')) npc.needs.rest = clamp(npc.needs.rest + 12, 0, 100);
     if (active.kind.includes('breakfast')) npc.needs.nutrition = clamp(npc.needs.nutrition + 18, 0, 100);
+    if (active.kind.includes('social') || active.kind.includes('chat')) {
+      npc.needs.belonging = clamp(npc.needs.belonging + 8, 0, 100);
+      this.sealSocialEvent(npc, 'social-task', active.locationId, `Completed social task: ${active.kind}`, 0.1);
+    }
     npc.needs.purpose = clamp(npc.needs.purpose + 0.5, 0, 100);
     npc.taskQueue = npc.taskQueue.filter((task) => task.status !== 'completed' || task.id === active.id).slice(-12);
   }

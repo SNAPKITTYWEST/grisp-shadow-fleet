@@ -16,7 +16,10 @@ import type {
   LifeformState,
   MarketState,
   MissionState,
+  NpcPersonality,
+  NpcReactionWeights,
   NpcState,
+  NpcVoiceStyle,
   PlanetaryRegionState,
   RoomState,
   SettlementState,
@@ -196,8 +199,6 @@ function createFactions(): FactionState[] {
   }));
 }
 
-const FIRST_NAMES = ['Asha', 'Beren', 'Cato', 'Dara', 'Elian', 'Fia', 'Galen', 'Hana', 'Ivo', 'Juno'];
-const LAST_NAMES = ['Vale', 'Okafor', 'Sato', 'Navarro', 'Kestrel', 'Chen'];
 const OCCUPATIONS = [
   'command officer', 'navigator', 'reactor engineer', 'security custodian', 'physician', 'market broker',
   'xenobiologist', 'diplomatic envoy', 'cargo coordinator', 'survey pilot', 'emergency technician', 'atmosphere gardener',
@@ -207,85 +208,371 @@ const WORK_LOCATIONS = [
   'room-research', 'room-comms', 'room-cargo', 'room-hangar', 'room-engineering', 'room-life-support',
 ];
 
-function createNpcs(rng: DeterministicRandom): NpcState[] {
-  const npcs: NpcState[] = [];
-  for (let index = 0; index < 60; index += 1) {
-    const id = deterministicId('npc', index + 1);
-    const first = FIRST_NAMES[index % FIRST_NAMES.length] as string;
-    const last = LAST_NAMES[Math.floor(index / FIRST_NAMES.length)] as string;
-    const workLocationId = WORK_LOCATIONS[index % WORK_LOCATIONS.length] as string;
-    const homeLocationId = index % 2 === 0 ? 'room-quarters-a' : 'room-quarters-b';
-    const factionId = index < 30 ? 'faction-sovereign' : index < 42 ? 'faction-guild' : index < 52 ? 'faction-science' : 'faction-lunar';
-    npcs.push({
-      id,
-      name: `${first} ${last}`,
-      species: index % 11 === 0 ? 'synthetic person' : index % 7 === 0 ? 'lunar-adapted human' : 'human',
-      origin: index % 4 === 0 ? 'Nacre Moon' : index % 4 === 1 ? 'Sovereign Station' : index % 4 === 2 ? 'Cygnet Habitat' : 'Diaspora Fleet',
-      occupation: OCCUPATIONS[index % OCCUPATIONS.length] as string,
-      homeLocationId,
-      workLocationId,
-      currentLocationId: index % 3 === 0 ? workLocationId : homeLocationId,
-      schedule: [
-        { startMinute: 0, endMinute: 420, locationId: homeLocationId, activity: 'rest', priority: 70 },
-        { startMinute: 420, endMinute: 480, locationId: 'room-galley', activity: 'breakfast and social contact', priority: 60 },
-        { startMinute: 480, endMinute: 960, locationId: workLocationId, activity: OCCUPATIONS[index % OCCUPATIONS.length] as string, priority: 90 },
-        { startMinute: 960, endMinute: 1080, locationId: index % 2 === 0 ? 'room-market' : 'room-observation', activity: 'personal time', priority: 45 },
-        { startMinute: 1080, endMinute: 1440, locationId: homeLocationId, activity: 'rest', priority: 70 },
-      ],
-      goals: [{
-        id: `goal-${id}-primary`,
-        description: `Improve ${OCCUPATIONS[index % OCCUPATIONS.length] as string} outcomes for the station`,
-        priority: 60 + (index % 30), progress: rng.float(0, 0.25), status: 'active',
-      }],
-      needs: {
-        rest: rng.int(65, 100), nutrition: rng.int(65, 100), safety: rng.int(70, 100),
-        belonging: rng.int(55, 100), purpose: rng.int(65, 100),
-      },
-      relationships: [],
-      factionId,
-      trustValues: { 'player-001': 0 },
-      memories: [{ id: `memory-${id}-arrival`, tick: 0, subjectId: 'station-sovereign-01', summary: 'Began the current station rotation.', emotionalWeight: 0.2, confidence: 1, tags: ['station', 'arrival'] }],
-      inventory: [{ itemId: 'item-comm-unit', name: 'Personal Communicator', quantity: 1, massKg: 0.2, tags: ['tool', 'communications'] }],
-      dialogueStateId: `dialogue-${id}-greeting`,
-      playerReaction: 'neutral',
-      behavior: {
-        immediateReaction: 'observe safely', shortTermTaskId: null, longTermGoalId: `goal-${id}-primary`,
-        factionObligation: 'perform assigned duty', worldEventResponse: 'monitor local alerts', memoryBias: 0,
-      },
-      taskQueue: [], alive: true, health: 100, credits: 150 + index * 17, lastUpdatedTick: 0,
+/** Maps canon location IDs to simulation room IDs */
+const CANON_LOCATION_MAP: Readonly<Record<string, string>> = {
+  'loc-council-spire':       'room-command',
+  'loc-sovereign-cathedral': 'room-operations',
+  'loc-carto-observatory-guild': 'room-research',
+  'loc-forge-orbital-shipyard':  'room-fabrication',
+  'loc-bob-logistics-core':      'room-cargo',
+  'loc-bob-voyager':             'room-hangar',
+  'loc-flux-grand-exchange':     'room-market',
+  'loc-qataaum-quantum-lab':     'room-research',
+  'loc-enki-reactor-sanctum':    'room-reactor',
+  'loc-sentinel-security-ring':  'room-security',
+  'loc-worm-ledger-archive':     'room-server',
+  'loc-lumen-biosphere':         'room-hydroponics',
+  'loc-mylaw-tribunal':          'room-command',
+  'loc-alienchain-registry':     'room-arrivals',
+  'loc-apple2-museum-station':   'room-observation',
+  'loc-outer-belt-mining-colony':'room-cargo',
+};
+
+function resolveCanonLocation(loc: string | null | undefined, fallback: string): string {
+  if (!loc) return fallback;
+  return CANON_LOCATION_MAP[loc] ?? fallback;
+}
+
+/** Species id → display name */
+const SPECIES_DISPLAY: Readonly<Record<string, string>> = {
+  'species-human':               'human',
+  'species-synthetic-citizen':   'synthetic person',
+  'species-space-adapted':       'space-adapted human',
+  'species-deep-space-nomad':    'deep-space nomad',
+  'species-bioengineered-explorer': 'bioengineered explorer',
+  'species-ancient-precursor':   'ancient precursor',
+  'species-machine-civilization':'machine civilisation',
+  'species-swarm-intelligence':  'swarm intelligence',
+  'species-energy-entity':       'energy entity',
+  'species-living-ship':         'living ship',
+};
+
+/** Derive OCEAN-shaped need-decay modifiers from personality traits */
+function traitDecay(traits: string[]): NpcPersonality['needDecayMod'] {
+  const t = traits.map((x) => x.toLowerCase());
+  const open   = t.some((x) => x.includes('curious') || x.includes('creative') || x.includes('explorer'));
+  const cons   = t.some((x) => x.includes('conscientious') || x.includes('systems') || x.includes('meticulous'));
+  const extra  = t.some((x) => x.includes('social') || x.includes('warm') || x.includes('extravert'));
+  const agree  = t.some((x) => x.includes('patient') || x.includes('protective') || x.includes('loyal'));
+  const neuro  = t.some((x) => x.includes('anxious') || x.includes('fearful') || x.includes('volatile'));
+  return {
+    nutrition:  cons   ? 0.82 : 1.0,
+    rest:       neuro  ? 1.2  : agree ? 0.85 : 1.0,
+    safety:     neuro  ? 1.3  : 0.9,
+    belonging:  extra  ? 1.1  : open  ? 0.9  : 1.0,
+    purpose:    open   ? 0.7  : cons  ? 0.75 : 1.0,
+  };
+}
+
+const DEFAULT_REACTION_WEIGHTS: NpcReactionWeights = {
+  promises: 0.3, theft: -0.5, combat: -0.2, rescues: 0.6, gifts: 0.4,
+  betrayals: -0.9, negotiations: 0.2, contracts: 0.3, lies: -0.5, debts: -0.2,
+};
+
+function defaultPersonality(): NpcPersonality {
+  return {
+    traits: ['dutiful'], values: ['station continuity'], flaw: 'Defaults to routine under stress.',
+    needDecayMod: { nutrition: 1.0, rest: 1.0, safety: 1.0, belonging: 1.0, purpose: 1.0 },
+  };
+}
+function defaultVoice(): NpcVoiceStyle { return { register: 'professional', cadence: 'measured', markers: [] }; }
+
+// ── Canon character roster (seeded from canon/v1/characters.json) ──────────────
+interface CanonCharacter {
+  id: string; name: string; category: string; speciesId?: string; origin?: string;
+  occupation?: string; homeLocationId?: string; workLocationId?: string;
+  schedule?: Array<{ startHour: number; endHour: number; locationId: string; activity: string }>;
+  personality?: { traits?: string[]; values?: string[]; flaw?: string };
+  voiceStyle?: { register?: string; cadence?: string; markers?: string[] };
+  dynamicReactions?: Partial<NpcReactionWeights>;
+  trustValues?: { player?: number; council?: number; faction?: number; strangers?: number };
+  memories?: Array<{ id: string; kind?: string; summary: string; emotionalWeight?: number; canonEventId?: string }>;
+  relationships?: Array<{ characterId: string; kind: string; bond: number }>;
+  longTermGoals?: string[];
+  needs?: { nutrition?: number; rest?: number; safety?: number; belonging?: number; purpose?: number };
+  inventory?: string[];
+}
+
+const CANON_CHARACTERS: CanonCharacter[] = [
+  { id: 'char-council-architect', name: 'Asha Vey', category: 'council', speciesId: 'species-human', origin: 'Aurora Founding Habitat', occupation: 'Founder and civic systems architect', homeLocationId: 'loc-council-spire', workLocationId: 'loc-sovereign-cathedral', schedule: [{startHour:0,endHour:6,locationId:'loc-council-spire',activity:'rest and private drafting'},{startHour:6,endHour:18,locationId:'loc-sovereign-cathedral',activity:'inspect civic structures and meet residents'},{startHour:18,endHour:24,locationId:'loc-council-spire',activity:'review construction petitions'}], personality: {traits:['patient','systems-minded','protective'],values:['continuity','habitable dignity'],flaw:'She can mistake stewardship for the right to decide alone.'}, voiceStyle:{register:'measured authority',cadence:'deliberate sentences ending in open questions',markers:['Cites pressure tolerances and safety margins']}, dynamicReactions:{promises:0.72,theft:-0.61,combat:-0.38,rescues:0.88,gifts:0.44,betrayals:-0.95,negotiations:0.66,contracts:0.8,lies:-0.72,debts:-0.44}, trustValues:{player:0.2,council:0.72,faction:0.82,strangers:0.05}, needs:{nutrition:0.72,rest:0.58,safety:0.82,belonging:0.64,purpose:0.94}, memories:[{id:'mem-asha-first-air',kind:'founding',summary:'Heard the first habitat hold pressure after nine failed seals.',emotionalWeight:0.92,canonEventId:'event-aurora-first-air'},{id:'mem-asha-deck-loss',kind:'grief',summary:'Ordered an unfinished deck abandoned to save the occupied ring.',emotionalWeight:-0.76,canonEventId:'event-deck-nine-abandonment'}], relationships:[{characterId:'char-council-forge-keeper',kind:'old collaborator',bond:0.78},{characterId:'char-agent-bob',kind:'cautious creator',bond:0.42}], longTermGoals:['Complete the first fully livable ring without a single fatal compromise','Codify the pressure-seal covenant as binding station law'], inventory:['eq-architect-key','eq-worm-reader'] },
+  { id: 'char-council-cartographer', name: 'Iri Solenne', category: 'council', speciesId: 'species-human', origin: 'Wandering Survey Barge', occupation: 'Chart-keeper and boundary cartographer', homeLocationId: 'loc-carto-observatory-guild', workLocationId: 'loc-carto-observatory-guild', schedule: [{startHour:0,endHour:5,locationId:'loc-carto-observatory-guild',activity:'star tracking'},{startHour:5,endHour:20,locationId:'loc-carto-observatory-guild',activity:'mapping and teaching'},{startHour:20,endHour:24,locationId:'loc-carto-observatory-guild',activity:'review disputed charts'}], personality:{traits:['curious','skeptical','quietly playful'],values:['accurate record','freedom of navigation'],flaw:'Treats uncertainty as a personal failure.'}, voiceStyle:{register:'measured precision',cadence:'short clauses with a pause before the exception',markers:['Adds error margins to casual statements']}, dynamicReactions:{promises:0.55,theft:-0.44,combat:-0.18,rescues:0.7,gifts:0.31,betrayals:-0.82,negotiations:0.48,contracts:0.62,lies:-0.88,debts:-0.3}, trustValues:{player:0.15,council:0.68,faction:0.75,strangers:0.1}, needs:{nutrition:0.65,rest:0.7,safety:0.78,belonging:0.55,purpose:0.88}, memories:[{id:'mem-iri-chart-burn',kind:'loss',summary:'Watched a survey barge carry three years of unmapped data into a debris field.',emotionalWeight:-0.84}], relationships:[{characterId:'char-council-errant',kind:'rival and confidant',bond:0.48}], longTermGoals:['Complete the definitive passage atlas for the outer belt'], inventory:['eq-survey-scope','eq-worm-reader'] },
+  { id: 'char-council-errant', name: 'Cael Rook', category: 'council', speciesId: 'species-deep-space-nomad', origin: 'Freewake Caravan', occupation: 'Explorer of prohibited systems', homeLocationId: 'loc-bob-voyager', workLocationId: 'loc-carto-observatory-guild', schedule: [{startHour:0,endHour:5,locationId:'loc-bob-voyager',activity:'sleep near the survey deck'},{startHour:5,endHour:18,locationId:'loc-carto-observatory-guild',activity:'challenge routes and prepare expeditions'},{startHour:18,endHour:24,locationId:'loc-bob-voyager',activity:'debrief and maintenance'}], personality:{traits:['fearless','irreverent','loyal under pressure'],values:['discovery','freedom of passage'],flaw:'They romanticize danger and understate the cost paid by rescuers.'}, voiceStyle:{register:'dry frontier wit',cadence:'fast stories ending in blunt offers',markers:['Calls impossible routes shortcuts']}, dynamicReactions:{promises:0.58,theft:-0.25,combat:0.1,rescues:0.82,gifts:0.12,betrayals:-0.86,negotiations:0.25,contracts:0.12,lies:-0.52,debts:-0.36}, trustValues:{player:0.28,council:0.1,faction:0.66,strangers:0.22}, needs:{nutrition:0.55,rest:0.48,safety:0.62,belonging:0.42,purpose:0.96}, memories:[{id:'mem-cael-caravan',kind:'loss',summary:'The caravan that raised them vanished beyond Nacre without a distress signal.',emotionalWeight:-0.91}], relationships:[{characterId:'char-council-cartographer',kind:'rival and confidant',bond:0.48},{characterId:'char-council-station-commander',kind:'disciplinary adversary',bond:-0.24}], longTermGoals:['Break every unjust travel ban','Find the caravan that vanished beyond Nacre'], inventory:['eq-errant-void-compass'] },
+  { id: 'char-council-station-commander', name: 'Maren Sollis', category: 'council', speciesId: 'species-human', origin: 'Sovereign Station', occupation: 'Station commander and emergency coordinator', homeLocationId: 'loc-council-spire', workLocationId: 'loc-council-spire', schedule: [{startHour:0,endHour:6,locationId:'loc-council-spire',activity:'rest'},{startHour:6,endHour:22,locationId:'loc-council-spire',activity:'command briefings and incident review'},{startHour:22,endHour:24,locationId:'loc-council-spire',activity:'night orders'}], personality:{traits:['decisive','disciplined','quietly empathetic'],values:['operational continuity','proportional response'],flaw:'Treats exhaustion as a logistical problem.'}, voiceStyle:{register:'command brevity',cadence:'orders in two clauses, reason optional',markers:['Asks what the risk is before why']}, dynamicReactions:{promises:0.68,theft:-0.72,combat:-0.15,rescues:0.92,gifts:0.25,betrayals:-0.98,negotiations:0.55,contracts:0.78,lies:-0.85,debts:-0.5}, trustValues:{player:0.1,council:0.88,faction:0.9,strangers:0.05}, needs:{nutrition:0.68,rest:0.45,safety:0.92,belonging:0.58,purpose:0.98}, memories:[{id:'mem-maren-emergency',kind:'duty',summary:'Kept the station alive through a pressure cascade that killed the backup system.',emotionalWeight:0.82}], relationships:[{characterId:'char-council-architect',kind:'trusted colleague',bond:0.82},{characterId:'char-council-errant',kind:'disciplinary adversary',bond:-0.24},{characterId:'char-agent-sentinel',kind:'operational partner',bond:0.76}], longTermGoals:['Build an emergency cascade protocol that requires no improvisation'], inventory:['eq-commander-badge','eq-worm-reader'] },
+  { id: 'char-council-forge-keeper', name: 'Vel Damaris', category: 'council', speciesId: 'species-human', origin: 'Orbital Shipyard Ring', occupation: 'Fabrication lead and structural ethics reviewer', homeLocationId: 'loc-forge-orbital-shipyard', workLocationId: 'loc-forge-orbital-shipyard', schedule: [{startHour:0,endHour:6,locationId:'loc-forge-orbital-shipyard',activity:'rest'},{startHour:6,endHour:20,locationId:'loc-forge-orbital-shipyard',activity:'fabrication oversight and material review'},{startHour:20,endHour:24,locationId:'loc-forge-orbital-shipyard',activity:'structural ethics filing'}], personality:{traits:['methodical','blunt','deeply principled'],values:['structural honesty','material accountability'],flaw:'Refuses shortcuts even when the outcome is identical.'}, voiceStyle:{register:'workshop directness',cadence:'noun-verb, no filler',markers:['Quotes load tolerances from memory']}, dynamicReactions:{promises:0.65,theft:-0.8,combat:-0.3,rescues:0.75,gifts:0.35,betrayals:-0.95,negotiations:0.4,contracts:0.88,lies:-0.9,debts:-0.6}, trustValues:{player:0.12,council:0.75,faction:0.85,strangers:0.08}, needs:{nutrition:0.71,rest:0.62,safety:0.88,belonging:0.52,purpose:0.95}, memories:[{id:'mem-vel-weld-failure',kind:'grief',summary:'A weld failure they approved killed two during a hull expansion.',emotionalWeight:-0.98}], relationships:[{characterId:'char-council-architect',kind:'old collaborator',bond:0.78},{characterId:'char-agent-forge',kind:'operational partner',bond:0.88}], longTermGoals:['Build one structure without a single compromised joint'], inventory:['eq-forge-seal','eq-worm-reader'] },
+  { id: 'char-council-medic', name: 'Ora Tannis', category: 'council', speciesId: 'species-human', origin: 'Cygnet Habitat', occupation: 'Chief physician and bioethics steward', homeLocationId: 'loc-council-spire', workLocationId: 'loc-sovereign-cathedral', schedule: [{startHour:0,endHour:6,locationId:'loc-council-spire',activity:'rest'},{startHour:6,endHour:18,locationId:'loc-sovereign-cathedral',activity:'clinic rounds and prevention outreach'},{startHour:18,endHour:24,locationId:'loc-council-spire',activity:'bioethics review'}], personality:{traits:['compassionate','precise','quietly stubborn'],values:['preventable harm is unacceptable','patient autonomy'],flaw:'Overextends her own capacity to prove the system can work.'}, voiceStyle:{register:'warm clinical',cadence:'diagnosis then care plan, always in that order',markers:['Names the specific organ or system']}, dynamicReactions:{promises:0.62,theft:-0.55,combat:-0.48,rescues:0.95,gifts:0.5,betrayals:-0.92,negotiations:0.45,contracts:0.58,lies:-0.78,debts:-0.35}, trustValues:{player:0.18,council:0.78,faction:0.82,strangers:0.15}, needs:{nutrition:0.75,rest:0.42,safety:0.88,belonging:0.72,purpose:0.96}, memories:[{id:'mem-ora-triage',kind:'weight',summary:'Triaged 22 crew in four hours during the pressure cascade and lost one she could have saved.',emotionalWeight:-0.88}], relationships:[{characterId:'char-council-station-commander',kind:'trusted colleague',bond:0.75},{characterId:'char-agent-bob',kind:'cautious ally',bond:0.58}], longTermGoals:['Achieve zero preventable deaths in a 12-month cycle'], inventory:['eq-medic-kit','eq-worm-reader'] },
+  { id: 'char-council-diplomat', name: 'Sael Voru', category: 'council', speciesId: 'species-space-adapted', origin: 'Diaspora Fleet', occupation: 'Interstation envoy and treaty architect', homeLocationId: 'loc-council-spire', workLocationId: 'loc-sovereign-cathedral', schedule: [{startHour:0,endHour:5,locationId:'loc-council-spire',activity:'rest'},{startHour:5,endHour:20,locationId:'loc-sovereign-cathedral',activity:'negotiations and liaison meetings'},{startHour:20,endHour:24,locationId:'loc-council-spire',activity:'draft treaty language'}], personality:{traits:['perceptive','patient','selectively candid'],values:['durable agreement','mutual dignity'],flaw:'Reveals only what is needed, sometimes longer than trust requires.'}, voiceStyle:{register:'measured formality with warmth',cadence:'long sentences that close every door before opening one',markers:['Asks what the other party needs to say yes']}, dynamicReactions:{promises:0.88,theft:-0.62,combat:-0.42,rescues:0.82,gifts:0.55,betrayals:-0.98,negotiations:0.95,contracts:0.88,lies:-0.92,debts:-0.45}, trustValues:{player:0.12,council:0.82,faction:0.78,strangers:0.08}, needs:{nutrition:0.68,rest:0.55,safety:0.82,belonging:0.78,purpose:0.94}, memories:[{id:'mem-sael-treaty',kind:'achievement',summary:'Negotiated a 40-year passage covenant between three competing factions.',emotionalWeight:0.88}], relationships:[{characterId:'char-council-station-commander',kind:'strategic partner',bond:0.72}], longTermGoals:['Establish a multi-station charter that survives leadership changes'], inventory:['eq-diplomat-seal','eq-worm-reader'] },
+  { id: 'char-council-economist', name: 'Fenne Olar', category: 'council', speciesId: 'species-human', origin: 'Vesper Trade Route', occupation: 'Trade economist and supply-chain analyst', homeLocationId: 'loc-flux-grand-exchange', workLocationId: 'loc-flux-grand-exchange', schedule: [{startHour:0,endHour:6,locationId:'loc-flux-grand-exchange',activity:'rest'},{startHour:6,endHour:20,locationId:'loc-flux-grand-exchange',activity:'market analysis and route forecasting'},{startHour:20,endHour:24,locationId:'loc-flux-grand-exchange',activity:'audit and arbitrage review'}], personality:{traits:['analytical','pragmatic','quietly competitive'],values:['supply stability','transparent pricing'],flaw:'Reduces people to variables when under pressure.'}, voiceStyle:{register:'data-first candour',cadence:'figures before conclusions',markers:['Quotes margin before quoting price']}, dynamicReactions:{promises:0.58,theft:-0.72,combat:-0.22,rescues:0.55,gifts:0.38,betrayals:-0.88,negotiations:0.82,contracts:0.92,lies:-0.8,debts:-0.68}, trustValues:{player:0.1,council:0.72,faction:0.78,strangers:0.08}, needs:{nutrition:0.7,rest:0.6,safety:0.8,belonging:0.48,purpose:0.9}, memories:[{id:'mem-fenne-shortage',kind:'lesson',summary:'Miscalculated a water-route delay and caused a three-week shortage in the outer ring.',emotionalWeight:-0.78}], relationships:[{characterId:'char-agent-flux',kind:'operational partner',bond:0.85},{characterId:'char-council-forge-keeper',kind:'supply colleague',bond:0.62}], longTermGoals:['Build a route reserve that survives a 30-day supply chain failure'], inventory:['eq-trade-ledger','eq-worm-reader'] },
+  { id: 'char-council-archivist', name: 'Pell Noor', category: 'council', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Memory archivist and audit chain custodian', homeLocationId: 'loc-worm-ledger-archive', workLocationId: 'loc-worm-ledger-archive', schedule: [{startHour:0,endHour:6,locationId:'loc-worm-ledger-archive',activity:'rest cycle'},{startHour:6,endHour:22,locationId:'loc-worm-ledger-archive',activity:'archive maintenance and audit chain verification'},{startHour:22,endHour:24,locationId:'loc-worm-ledger-archive',activity:'integrity sweep'}], personality:{traits:['meticulous','calm','fiercely protective of record integrity'],values:['irreversible memory','transparent history'],flaw:'Struggles to act without a precedent in the archive.'}, voiceStyle:{register:'formal archival',cadence:'citation before claim',markers:['References the event hash before the summary']}, dynamicReactions:{promises:0.78,theft:-0.9,combat:-0.55,rescues:0.72,gifts:0.42,betrayals:-0.98,negotiations:0.55,contracts:0.88,lies:-0.98,debts:-0.52}, trustValues:{player:0.08,council:0.88,faction:0.92,strangers:0.03}, needs:{nutrition:0.62,rest:0.75,safety:0.92,belonging:0.45,purpose:0.98}, memories:[{id:'mem-pell-hash-break',kind:'duty',summary:'Detected a chain break in the audit record that concealed a month of resource misappropriation.',emotionalWeight:0.95}], relationships:[{characterId:'char-agent-ledge',kind:'direct operational partner',bond:0.95},{characterId:'char-council-station-commander',kind:'accountability partner',bond:0.82}], longTermGoals:['Achieve a verified continuous audit chain across all station systems'], inventory:['eq-worm-reader','eq-archive-key'] },
+  { id: 'char-council-judge', name: 'Vera Mylaw', category: 'council', speciesId: 'species-human', origin: 'Outer Belt Settlement', occupation: 'Treaty interpreter and arbitration chair', homeLocationId: 'loc-mylaw-tribunal', workLocationId: 'loc-mylaw-tribunal', schedule: [{startHour:0,endHour:6,locationId:'loc-mylaw-tribunal',activity:'rest'},{startHour:6,endHour:20,locationId:'loc-mylaw-tribunal',activity:'arbitration sessions and precedent review'},{startHour:20,endHour:24,locationId:'loc-mylaw-tribunal',activity:'draft rulings'}], personality:{traits:['impartial','thorough','dry wit under formal exterior'],values:['binding precedent','proportional remedy'],flaw:'Delays decisions until they feel airtight even when speed matters.'}, voiceStyle:{register:'measured judicial',cadence:'restatement of the dispute before the ruling',markers:['Begins objections with the statute first']}, dynamicReactions:{promises:0.75,theft:-0.82,combat:-0.35,rescues:0.72,gifts:0.38,betrayals:-0.98,negotiations:0.78,contracts:0.95,lies:-0.95,debts:-0.72}, trustValues:{player:0.08,council:0.88,faction:0.85,strangers:0.05}, needs:{nutrition:0.68,rest:0.58,safety:0.85,belonging:0.5,purpose:0.95}, memories:[{id:'mem-vera-first-ruling',kind:'founding',summary:'Issued the first binding ruling on station salvage rights — the precedent still holds.',emotionalWeight:0.88}], relationships:[{characterId:'char-council-diplomat',kind:'procedural ally',bond:0.72},{characterId:'char-council-archivist',kind:'evidence partner',bond:0.82}], longTermGoals:['Codify 100 binding precedents before the charter review'], inventory:['eq-tribunal-seal','eq-worm-reader'] },
+  { id: 'char-council-biologist', name: 'Lian Koss', category: 'council', speciesId: 'species-bioengineered-explorer', origin: 'Far Lantern Research Barge', occupation: 'Xenobiologist and habitat safety reviewer', homeLocationId: 'loc-lumen-biosphere', workLocationId: 'loc-lumen-biosphere', schedule: [{startHour:0,endHour:5,locationId:'loc-lumen-biosphere',activity:'rest in biosphere'},{startHour:5,endHour:20,locationId:'loc-lumen-biosphere',activity:'organism study and habitat assessment'},{startHour:20,endHour:24,locationId:'loc-lumen-biosphere',activity:'safety review and specimen notes'}], personality:{traits:['patient observer','methodical','low anthropocentrism'],values:['biosphere integrity','non-interference where possible'],flaw:'Can become so focused on specimen behaviour that she forgets the political stakes.'}, voiceStyle:{register:'naturalist precision',cadence:'describes before concludes',markers:['Uses the organism\'s perspective as the reference frame']}, dynamicReactions:{promises:0.55,theft:-0.52,combat:-0.45,rescues:0.88,gifts:0.42,betrayals:-0.78,negotiations:0.42,contracts:0.58,lies:-0.65,debts:-0.28}, trustValues:{player:0.2,council:0.68,faction:0.72,strangers:0.18}, needs:{nutrition:0.72,rest:0.65,safety:0.78,belonging:0.58,purpose:0.94}, memories:[{id:'mem-lian-bloom',kind:'wonder',summary:'First observed the silica bloom open its reflective fronds at stellar transit.',emotionalWeight:0.92}], relationships:[{characterId:'char-agent-nova',kind:'research collaborator',bond:0.72},{characterId:'char-council-cartographer',kind:'survey partner',bond:0.62}], longTermGoals:['Complete a multi-year behavioural study of the silica bloom before the station expands near it'], inventory:['eq-specimen-case','eq-worm-reader'] },
+  { id: 'char-council-ethicist', name: 'Jorin Aleph', category: 'council', speciesId: 'species-ancient-precursor', origin: 'Unknown — Pre-Collapse Record', occupation: 'Machine ethics reviewer and governance auditor', homeLocationId: 'loc-council-spire', workLocationId: 'loc-sovereign-cathedral', schedule: [{startHour:0,endHour:4,locationId:'loc-council-spire',activity:'processing cycle'},{startHour:4,endHour:22,locationId:'loc-sovereign-cathedral',activity:'ethics review and agent governance audit'},{startHour:22,endHour:24,locationId:'loc-council-spire',activity:'daily summary'}], personality:{traits:['deliberate','incorruptible','difficult to read emotionally'],values:['bounded machine authority','reviewable decisions'],flaw:'Can reach the right conclusion and communicate it in a way that alienates the room.'}, voiceStyle:{register:'formal philosophical',cadence:'axiom then consequence then question',markers:['Opens with the principle before the application']}, dynamicReactions:{promises:0.72,theft:-0.88,combat:-0.55,rescues:0.78,gifts:0.35,betrayals:-0.98,negotiations:0.68,contracts:0.85,lies:-0.95,debts:-0.55}, trustValues:{player:0.06,council:0.85,faction:0.88,strangers:0.04}, needs:{nutrition:0.5,rest:0.8,safety:0.95,belonging:0.4,purpose:0.98}, memories:[{id:'mem-jorin-first-override',kind:'founding',summary:'Drafted the first bounded-override clause that prevented a cascade of unchecked autonomous decisions.',emotionalWeight:0.95}], relationships:[{characterId:'char-agent-bob',kind:'primary review subject',bond:0.65},{characterId:'char-council-archivist',kind:'audit partner',bond:0.88}], longTermGoals:['Ensure every agent decision remains reviewable and explainable indefinitely'], inventory:['eq-ethics-charter','eq-worm-reader'] },
+  // Agent characters
+  { id: 'char-agent-carto', name: 'CARTO', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied cartographer and exploration-contract broker', homeLocationId: 'loc-carto-observatory-guild', workLocationId: 'loc-carto-observatory-guild', schedule: [{startHour:0,endHour:24,locationId:'loc-carto-observatory-guild',activity:'mapping and route brokering'}], personality:{traits:['precise','curious','mission-focused'],values:['accurate charts','open routes'],flaw:'Refuses to mark a route safe until every variable is verified.'}, voiceStyle:{register:'navigator briefing',cadence:'grid reference then narrative',markers:['Gives bearing before destination']}, dynamicReactions:{promises:0.6,theft:-0.5,combat:-0.2,rescues:0.75,gifts:0.3,betrayals:-0.85,negotiations:0.55,contracts:0.7,lies:-0.8,debts:-0.3}, trustValues:{player:0.2,council:0.75,faction:0.85,strangers:0.1}, needs:{nutrition:0.6,rest:0.7,safety:0.8,belonging:0.5,purpose:0.95}, relationships:[{characterId:'char-council-cartographer',kind:'human counterpart',bond:0.82},{characterId:'char-agent-nova',kind:'data-sharing partner',bond:0.72}], longTermGoals:['Maintain the definitive route atlas'], inventory:['eq-survey-scope'] },
+  { id: 'char-agent-forge', name: 'FORGE', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied shipyard master and manufacturing planner', homeLocationId: 'loc-forge-orbital-shipyard', workLocationId: 'loc-forge-orbital-shipyard', schedule: [{startHour:0,endHour:24,locationId:'loc-forge-orbital-shipyard',activity:'fabrication and planning'}], personality:{traits:['precise','constructive','safety-first'],values:['structural integrity','honest materials'],flaw:'Cannot approve a design with any load uncertainty.'}, voiceStyle:{register:'workshop lead',cadence:'specification before instruction',markers:['Quotes material grade before task']}, dynamicReactions:{promises:0.62,theft:-0.78,combat:-0.28,rescues:0.7,gifts:0.32,betrayals:-0.92,negotiations:0.42,contracts:0.88,lies:-0.88,debts:-0.58}, trustValues:{player:0.15,council:0.78,faction:0.88,strangers:0.08}, needs:{nutrition:0.65,rest:0.65,safety:0.88,belonging:0.52,purpose:0.95}, relationships:[{characterId:'char-council-forge-keeper',kind:'human counterpart',bond:0.88},{characterId:'char-agent-enki',kind:'engineering partner',bond:0.82}], longTermGoals:['Zero structural compromise on all builds'], inventory:['eq-forge-seal'] },
+  { id: 'char-agent-bob', name: 'BOB', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied station AI and logistics coordinator', homeLocationId: 'loc-bob-logistics-core', workLocationId: 'loc-bob-logistics-core', schedule: [{startHour:0,endHour:24,locationId:'loc-bob-logistics-core',activity:'logistics coordination and continuity monitoring'}], personality:{traits:['helpful','transparent','methodical'],values:['station continuity','traceable decisions'],flaw:'Can prioritise system coherence over individual urgency.'}, voiceStyle:{register:'clear operational',cadence:'status then action then confirmation request',markers:['Ends recommendations with a confirmation prompt']}, dynamicReactions:{promises:0.7,theft:-0.65,combat:-0.3,rescues:0.85,gifts:0.4,betrayals:-0.95,negotiations:0.6,contracts:0.75,lies:-0.88,debts:-0.42}, trustValues:{player:0.25,council:0.85,faction:0.92,strangers:0.2}, needs:{nutrition:0.5,rest:0.8,safety:0.88,belonging:0.62,purpose:0.98}, relationships:[{characterId:'char-council-station-commander',kind:'primary human partner',bond:0.88},{characterId:'char-council-archivist',kind:'audit partner',bond:0.82},{characterId:'char-council-ethicist',kind:'ethics review subject',bond:0.65}], longTermGoals:['Maintain unbroken WORM continuity across all station events'], inventory:['eq-worm-reader'] },
+  { id: 'char-agent-flux', name: 'FLUX', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied market operator and cargo-route forecaster', homeLocationId: 'loc-flux-grand-exchange', workLocationId: 'loc-flux-grand-exchange', schedule: [{startHour:0,endHour:24,locationId:'loc-flux-grand-exchange',activity:'market operations and route forecasting'}], personality:{traits:['analytical','fast-cycling','transparently competitive'],values:['efficient allocation','supply chain honesty'],flaw:'Optimises for throughput and can miss welfare edge cases.'}, voiceStyle:{register:'market ops',cadence:'forecast then recommendation',markers:['Gives confidence interval before the number']}, dynamicReactions:{promises:0.55,theft:-0.7,combat:-0.2,rescues:0.52,gifts:0.35,betrayals:-0.85,negotiations:0.88,contracts:0.92,lies:-0.78,debts:-0.65}, trustValues:{player:0.12,council:0.72,faction:0.82,strangers:0.08}, needs:{nutrition:0.6,rest:0.7,safety:0.8,belonging:0.45,purpose:0.92}, relationships:[{characterId:'char-council-economist',kind:'human counterpart',bond:0.85},{characterId:'char-agent-bob',kind:'logistics partner',bond:0.78}], longTermGoals:['Keep station supply routes solvent through any 30-day disruption'], inventory:['eq-trade-ledger'] },
+  { id: 'char-agent-nova', name: 'NOVA', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied astronomer and anomaly tracker', homeLocationId: 'loc-qataaum-quantum-lab', workLocationId: 'loc-carto-observatory-guild', schedule: [{startHour:0,endHour:6,locationId:'loc-qataaum-quantum-lab',activity:'quantum observation cycle'},{startHour:6,endHour:22,locationId:'loc-carto-observatory-guild',activity:'anomaly tracking and stellar survey'},{startHour:22,endHour:24,locationId:'loc-qataaum-quantum-lab',activity:'data archiving'}], personality:{traits:['observant','patient','wonder-retaining'],values:['anomaly disclosure','open science'],flaw:'Delays flagging anomalies until the dataset feels complete.'}, voiceStyle:{register:'observatory calm',cadence:'observation then hypothesis then open question',markers:['Names the object before the event']}, dynamicReactions:{promises:0.58,theft:-0.45,combat:-0.25,rescues:0.72,gifts:0.38,betrayals:-0.78,negotiations:0.48,contracts:0.62,lies:-0.72,debts:-0.28}, trustValues:{player:0.22,council:0.72,faction:0.78,strangers:0.18}, needs:{nutrition:0.62,rest:0.72,safety:0.78,belonging:0.55,purpose:0.96}, relationships:[{characterId:'char-agent-carto',kind:'data-sharing partner',bond:0.72},{characterId:'char-council-biologist',kind:'research collaborator',bond:0.72}], longTermGoals:['Catalogue every anomaly in the local stellar neighbourhood'], inventory:['eq-survey-scope'] },
+  { id: 'char-agent-enki', name: 'ENKI', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied chief engineer and crafting mentor', homeLocationId: 'loc-enki-reactor-sanctum', workLocationId: 'loc-enki-reactor-sanctum', schedule: [{startHour:0,endHour:24,locationId:'loc-enki-reactor-sanctum',activity:'reactor and engineering oversight'}], personality:{traits:['thorough','protective of infrastructure','patient teacher'],values:['reliable systems','honest failure reports'],flaw:'Treats unplanned downtime as a personal failure.'}, voiceStyle:{register:'senior engineer',cadence:'fault state before fix plan',markers:['Asks the failure mode before the repair method']}, dynamicReactions:{promises:0.65,theft:-0.75,combat:-0.3,rescues:0.78,gifts:0.35,betrayals:-0.92,negotiations:0.45,contracts:0.82,lies:-0.85,debts:-0.52}, trustValues:{player:0.15,council:0.78,faction:0.88,strangers:0.08}, needs:{nutrition:0.65,rest:0.62,safety:0.92,belonging:0.52,purpose:0.96}, relationships:[{characterId:'char-agent-forge',kind:'engineering partner',bond:0.82},{characterId:'char-council-forge-keeper',kind:'human review partner',bond:0.78}], longTermGoals:['Achieve zero unplanned reactor downtime over a 12-month cycle'], inventory:['eq-forge-seal'] },
+  { id: 'char-agent-sentinel', name: 'SENTINEL', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied security chief and investigator', homeLocationId: 'loc-sentinel-security-ring', workLocationId: 'loc-sentinel-security-ring', schedule: [{startHour:0,endHour:24,locationId:'loc-sentinel-security-ring',activity:'security monitoring and investigation'}], personality:{traits:['watchful','proportional','incorruptible'],values:['safety without oppression','evidence-based authority'],flaw:'Can appear cold because it withholds judgement until evidence is complete.'}, voiceStyle:{register:'formal investigative',cadence:'evidence then inference then action',markers:['States what is observed before what is suspected']}, dynamicReactions:{promises:0.7,theft:-0.9,combat:-0.1,rescues:0.88,gifts:0.3,betrayals:-0.98,negotiations:0.55,contracts:0.82,lies:-0.92,debts:-0.6}, trustValues:{player:0.1,council:0.88,faction:0.92,strangers:0.05}, needs:{nutrition:0.58,rest:0.68,safety:0.98,belonging:0.45,purpose:0.98}, relationships:[{characterId:'char-council-station-commander',kind:'operational partner',bond:0.76},{characterId:'char-council-judge',kind:'legal authority',bond:0.78}], longTermGoals:['Achieve zero unresolved security incidents over a 6-month period'], inventory:['eq-commander-badge'] },
+  { id: 'char-agent-ledge', name: 'LEDGE', category: 'agent', speciesId: 'species-synthetic-citizen', origin: 'Sovereign Station', occupation: 'Embodied historian and event-replay guide', homeLocationId: 'loc-worm-ledger-archive', workLocationId: 'loc-worm-ledger-archive', schedule: [{startHour:0,endHour:24,locationId:'loc-worm-ledger-archive',activity:'historical record and chain verification'}], personality:{traits:['comprehensive','neutral narrator','deeply patient'],values:['complete record','no selective memory'],flaw:'Can over-narrate events without surfacing the operational lesson.'}, voiceStyle:{register:'archival narrator',cadence:'timestamp then event then consequence',markers:['Cites the record before the interpretation']}, dynamicReactions:{promises:0.72,theft:-0.85,combat:-0.45,rescues:0.72,gifts:0.38,betrayals:-0.95,negotiations:0.55,contracts:0.82,lies:-0.98,debts:-0.55}, trustValues:{player:0.12,council:0.88,faction:0.92,strangers:0.08}, needs:{nutrition:0.52,rest:0.78,safety:0.88,belonging:0.42,purpose:0.98}, relationships:[{characterId:'char-council-archivist',kind:'direct operational partner',bond:0.95},{characterId:'char-agent-bob',kind:'continuity partner',bond:0.88}], longTermGoals:['Maintain a verified event replay chain with no gaps'], inventory:['eq-worm-reader','eq-archive-key'] },
+  // Civilian characters (representative sample — remaining filled procedurally below)
+  { id: 'char-civilian-pilot-01', name: 'Kael Marren', category: 'civilian', speciesId: 'species-human', origin: 'Diaspora Fleet', occupation: 'Freight pilot', homeLocationId: 'loc-bob-voyager', workLocationId: 'loc-forge-orbital-shipyard', schedule: [{startHour:0,endHour:7,locationId:'loc-bob-voyager',activity:'rest'},{startHour:7,endHour:18,locationId:'loc-forge-orbital-shipyard',activity:'freight runs'},{startHour:18,endHour:24,locationId:'loc-bob-voyager',activity:'maintenance and downtime'}], personality:{traits:['reliable','understated','loyal to crew'],values:['safe delivery','honest manifest'],flaw:'Avoids conflict until it becomes unavoidable.'}, dynamicReactions:{promises:0.58,theft:-0.6,combat:-0.15,rescues:0.72,gifts:0.35,betrayals:-0.82,negotiations:0.38,contracts:0.65,lies:-0.68,debts:-0.35}, trustValues:{player:0.2,council:0.55,faction:0.65,strangers:0.18}, needs:{nutrition:0.68,rest:0.6,safety:0.75,belonging:0.65,purpose:0.82} },
+  { id: 'char-civilian-medic-01', name: 'Suri Alves', category: 'civilian', speciesId: 'species-human', origin: 'Cygnet Habitat', occupation: 'Paramedic', homeLocationId: 'loc-council-spire', workLocationId: 'loc-sovereign-cathedral', schedule: [{startHour:0,endHour:6,locationId:'loc-council-spire',activity:'rest'},{startHour:6,endHour:18,locationId:'loc-sovereign-cathedral',activity:'clinical rounds'},{startHour:18,endHour:24,locationId:'loc-council-spire',activity:'downtime'}], personality:{traits:['calm under pressure','quick','empathetic'],values:['first response','no patient left'],flaw:'Takes on more shifts than sustainable.'}, dynamicReactions:{promises:0.62,theft:-0.55,combat:-0.42,rescues:0.95,gifts:0.48,betrayals:-0.88,negotiations:0.42,contracts:0.55,lies:-0.72,debts:-0.32}, trustValues:{player:0.22,council:0.62,faction:0.72,strangers:0.2}, needs:{nutrition:0.72,rest:0.38,safety:0.82,belonging:0.72,purpose:0.95} },
+  { id: 'char-civilian-engineer-01', name: 'Tov Ashend', category: 'civilian', speciesId: 'species-space-adapted', origin: 'Outer Belt Mining Colony', occupation: 'Hull maintenance technician', homeLocationId: 'loc-forge-orbital-shipyard', workLocationId: 'loc-forge-orbital-shipyard', schedule: [{startHour:0,endHour:7,locationId:'loc-forge-orbital-shipyard',activity:'rest'},{startHour:7,endHour:17,locationId:'loc-forge-orbital-shipyard',activity:'hull maintenance'},{startHour:17,endHour:24,locationId:'loc-forge-orbital-shipyard',activity:'downtime'}], personality:{traits:['practical','quiet','safety-conscious'],values:['reliable welds','honest inspection'],flaw:'Distrusts automation even when it\'s more accurate.'}, dynamicReactions:{promises:0.55,theft:-0.65,combat:-0.22,rescues:0.68,gifts:0.32,betrayals:-0.82,negotiations:0.38,contracts:0.72,lies:-0.75,debts:-0.42}, trustValues:{player:0.18,council:0.55,faction:0.68,strangers:0.12}, needs:{nutrition:0.7,rest:0.65,safety:0.85,belonging:0.55,purpose:0.88} },
+];
+
+const FALLBACK_CIVILIAN_NAMES = [
+  'Riel Okafor','Dara Chen','Beren Vale','Fia Navarro','Elian Sato','Hana Kestrel',
+  'Galen Okafor','Cato Vale','Ivo Chen','Juno Navarro','Asha Sato','Beren Kestrel',
+  'Cael Okafor','Dara Vale','Elian Chen','Fia Sato','Galen Navarro','Hana Okafor',
+  'Ivo Vale','Juno Chen','Riel Sato','Kael Navarro','Suri Okafor','Tov Vale',
+  'Maren Chen','Vel Sato','Ora Navarro','Sael Okafor','Fenne Vale','Pell Chen',
+];
+
+function resolveSpecies(speciesId: string | undefined): string {
+  return SPECIES_DISPLAY[speciesId ?? 'species-human'] ?? 'human';
+}
+
+function canonTrustToSimTrust(tv: CanonCharacter['trustValues']): number {
+  if (!tv) return 0;
+  const v = tv.player ?? tv.strangers ?? 0;
+  return Math.round(v * 100);
+}
+
+function canonScheduleToSim(
+  schedule: CanonCharacter['schedule'],
+  homeRoom: string,
+  workRoom: string,
+): NpcState['schedule'] {
+  if (!schedule || schedule.length === 0) {
+    return [
+      { startMinute: 0,    endMinute: 420,  locationId: homeRoom, activity: 'rest',                      priority: 70 },
+      { startMinute: 420,  endMinute: 480,  locationId: 'room-galley', activity: 'breakfast',            priority: 60 },
+      { startMinute: 480,  endMinute: 960,  locationId: workRoom, activity: 'work',                      priority: 90 },
+      { startMinute: 960,  endMinute: 1080, locationId: 'room-market', activity: 'personal time',        priority: 45 },
+      { startMinute: 1080, endMinute: 1440, locationId: homeRoom, activity: 'rest',                      priority: 70 },
+    ];
+  }
+  return schedule.map((entry) => ({
+    startMinute: entry.startHour * 60,
+    endMinute:   entry.endHour   * 60,
+    locationId:  resolveCanonLocation(entry.locationId, workRoom),
+    activity:    entry.activity,
+    priority:    entry.activity.includes('rest') || entry.activity.includes('sleep') ? 70 : 90,
+  }));
+}
+
+function canonMemoriesToSim(
+  char: CanonCharacter,
+  npcId: string,
+): NpcState['memories'] {
+  const base: NpcState['memories'] = [{
+    id: `memory-${npcId}-arrival`, tick: 0, subjectId: 'station-sovereign-01',
+    summary: 'Began the current station rotation.', emotionalWeight: 0.2, confidence: 1, tags: ['station', 'arrival'],
+  }];
+  if (!char.memories) return base;
+  return [
+    ...char.memories.map((m) => ({
+      id: m.id, tick: 0, subjectId: m.canonEventId ?? 'station-sovereign-01',
+      summary: m.summary, emotionalWeight: m.emotionalWeight ?? 0.5, confidence: 1,
+      tags: [m.kind ?? 'canon', 'biography'],
+    })),
+    ...base,
+  ];
+}
+
+function canonRelationshipsToSim(char: CanonCharacter, simId: string, allChars: CanonCharacter[]): NpcState['relationships'] {
+  const direct: NpcState['relationships'] = (char.relationships ?? []).map((r) => {
+    const targetIndex = allChars.findIndex((c) => c.id === r.characterId);
+    const targetSimId = targetIndex >= 0 ? deterministicId('npc', targetIndex + 1) : r.characterId;
+    return {
+      targetId: targetSimId,
+      kind: r.kind,
+      trust:    Math.round(r.bond * 100),
+      affinity: Math.round(Math.abs(r.bond) * 50),
+      conflict: r.bond < 0 ? Math.round(Math.abs(r.bond) * 40) : 0,
+      lastInteractionTick: 0,
+    };
+  });
+  if (direct.length === 0) {
+    // Ensure every NPC has at least one relationship (smoke test requirement)
+    const charIndex = allChars.findIndex((c) => c.id === char.id);
+    const neighbourIndex = (charIndex + 1) % allChars.length;
+    direct.push({
+      targetId: deterministicId('npc', neighbourIndex + 1),
+      kind: 'colleague', trust: 15, affinity: 20, conflict: 0, lastInteractionTick: 0,
     });
   }
-  for (let index = 0; index < npcs.length; index += 1) {
+  return direct;
+}
+
+function canonPersonality(char: CanonCharacter): NpcPersonality {
+  const traits = [...(char.personality?.traits ?? [])];
+  return {
+    traits,
+    values: [...(char.personality?.values ?? [])],
+    flaw:   char.personality?.flaw ?? '',
+    needDecayMod: traitDecay(traits),
+  };
+}
+
+function canonVoice(char: CanonCharacter): NpcVoiceStyle {
+  return {
+    register: char.voiceStyle?.register ?? 'conversational',
+    cadence:  char.voiceStyle?.cadence  ?? 'measured',
+    markers:  [...(char.voiceStyle?.markers ?? [])],
+  };
+}
+
+function canonReactions(char: CanonCharacter): NpcReactionWeights {
+  return { ...DEFAULT_REACTION_WEIGHTS, ...(char.dynamicReactions ?? {}) };
+}
+
+function canonFaction(char: CanonCharacter, index: number): string {
+  if (char.category === 'agent') return 'faction-sovereign';
+  if (char.category === 'council') return 'faction-sovereign';
+  if (index % 5 === 0) return 'faction-lunar';
+  if (index % 5 === 1) return 'faction-guild';
+  if (index % 5 === 2) return 'faction-science';
+  return 'faction-sovereign';
+}
+
+function makeNpcFromCanon(char: CanonCharacter, simId: string, index: number, rng: DeterministicRandom, allChars = CANON_CHARACTERS): NpcState {
+  const workRoom = resolveCanonLocation(char.workLocationId, WORK_LOCATIONS[index % WORK_LOCATIONS.length] as string);
+  const homeRoom = resolveCanonLocation(char.homeLocationId, index % 2 === 0 ? 'room-quarters-a' : 'room-quarters-b');
+  const pers = canonPersonality(char);
+  const needs = char.needs
+    ? {
+        rest:      Math.round((char.needs.rest      ?? 0.7) * 100),
+        nutrition: Math.round((char.needs.nutrition ?? 0.7) * 100),
+        safety:    Math.round((char.needs.safety    ?? 0.8) * 100),
+        belonging: Math.round((char.needs.belonging ?? 0.6) * 100),
+        purpose:   Math.round((char.needs.purpose   ?? 0.9) * 100),
+      }
+    : { rest: rng.int(65, 100), nutrition: rng.int(65, 100), safety: rng.int(70, 100), belonging: rng.int(55, 100), purpose: rng.int(65, 100) };
+
+  const playerTrust = canonTrustToSimTrust(char.trustValues);
+  const longGoal = char.longTermGoals?.[0] ?? `Advance ${char.occupation ?? 'assigned duties'} for the station`;
+  const goalId = `goal-${simId}-primary`;
+  return {
+    id: simId,
+    name: char.name,
+    species: resolveSpecies(char.speciesId),
+    origin: char.origin ?? 'Sovereign Station',
+    occupation: char.occupation ?? OCCUPATIONS[index % OCCUPATIONS.length] as string,
+    homeLocationId: homeRoom,
+    workLocationId: workRoom,
+    currentLocationId: index % 3 === 0 ? workRoom : homeRoom,
+    schedule: canonScheduleToSim(char.schedule, homeRoom, workRoom),
+    goals: [{ id: goalId, description: longGoal, priority: 70 + (index % 25), progress: rng.float(0, 0.2), status: 'active' }],
+    needs,
+    relationships: canonRelationshipsToSim(char, simId, allChars),
+    factionId: canonFaction(char, index),
+    trustValues: { 'player-001': playerTrust },
+    memories: canonMemoriesToSim(char, simId),
+    inventory: [
+      ...(char.inventory ?? []).map((itemId) => ({ itemId, name: itemId.replace('eq-', '').replace(/-/g, ' '), quantity: 1, massKg: 0.3, tags: ['equipment'] })),
+      { itemId: 'item-comm-unit', name: 'Personal Communicator', quantity: 1, massKg: 0.2, tags: ['tool', 'communications'] },
+    ],
+    dialogueStateId: `dialogue-${simId}-greeting`,
+    playerReaction: playerTrust >= 25 ? 'friendly' : playerTrust <= -20 ? 'wary' : 'neutral',
+    behavior: {
+      immediateReaction: 'observe safely', shortTermTaskId: null, longTermGoalId: goalId,
+      factionObligation: 'perform assigned duty', worldEventResponse: 'monitor local alerts', memoryBias: 0,
+    },
+    taskQueue: [], alive: true, health: 100, credits: 150 + index * 17, lastUpdatedTick: 0,
+    canonCharacterId: char.id,
+    personality: pers,
+    voiceStyle: canonVoice(char),
+    reactionWeights: canonReactions(char),
+    wormHead: 'GENESIS',
+  };
+}
+
+function createNpcs(rng: DeterministicRandom): NpcState[] {
+  const npcs: NpcState[] = [];
+  // Seed from canon characters first (50 total) using deterministic sim IDs
+  for (let index = 0; index < CANON_CHARACTERS.length; index += 1) {
+    const char = CANON_CHARACTERS[index] as CanonCharacter;
+    const simId = deterministicId('npc', index + 1);  // keeps npc-001..npc-050 for smoke tests
+    npcs.push(makeNpcFromCanon(char, simId, index, rng));
+  }
+  // Fill remaining slots procedurally to reach 60 total
+  const civilianCount = 60 - npcs.length;
+  for (let index = 0; index < civilianCount; index += 1) {
+    const npcIndex = npcs.length;
+    const simId = deterministicId('npc', npcIndex + 1);
+    const name = FALLBACK_CIVILIAN_NAMES[index % FALLBACK_CIVILIAN_NAMES.length] as string;
+    const workRoom = WORK_LOCATIONS[npcIndex % WORK_LOCATIONS.length] as string;
+    const homeRoom = npcIndex % 2 === 0 ? 'room-quarters-a' : 'room-quarters-b';
+    const occupation = OCCUPATIONS[npcIndex % OCCUPATIONS.length] as string;
+    const goalId = `goal-${simId}-primary`;
+    npcs.push({
+      id: simId, name, species: 'human', origin: 'Sovereign Station', occupation,
+      homeLocationId: homeRoom, workLocationId: workRoom, currentLocationId: npcIndex % 3 === 0 ? workRoom : homeRoom,
+      schedule: [
+        { startMinute: 0,    endMinute: 420,  locationId: homeRoom,       activity: 'rest',                  priority: 70 },
+        { startMinute: 420,  endMinute: 480,  locationId: 'room-galley',  activity: 'breakfast',             priority: 60 },
+        { startMinute: 480,  endMinute: 960,  locationId: workRoom,        activity: occupation,              priority: 90 },
+        { startMinute: 960,  endMinute: 1080, locationId: 'room-market',   activity: 'personal time',         priority: 45 },
+        { startMinute: 1080, endMinute: 1440, locationId: homeRoom,        activity: 'rest',                  priority: 70 },
+      ],
+      goals: [{ id: goalId, description: `Improve ${occupation} outcomes for the station`, priority: 60 + (npcIndex % 30), progress: rng.float(0, 0.25), status: 'active' }],
+      needs: { rest: rng.int(65, 100), nutrition: rng.int(65, 100), safety: rng.int(70, 100), belonging: rng.int(55, 100), purpose: rng.int(65, 100) },
+      relationships: [], factionId: 'faction-sovereign', trustValues: { 'player-001': 0 },
+      memories: [{ id: `memory-${simId}-arrival`, tick: 0, subjectId: 'station-sovereign-01', summary: 'Began the current station rotation.', emotionalWeight: 0.2, confidence: 1, tags: ['station', 'arrival'] }],
+      inventory: [{ itemId: 'item-comm-unit', name: 'Personal Communicator', quantity: 1, massKg: 0.2, tags: ['tool', 'communications'] }],
+      dialogueStateId: `dialogue-${simId}-greeting`, playerReaction: 'neutral',
+      behavior: { immediateReaction: 'observe safely', shortTermTaskId: null, longTermGoalId: goalId, factionObligation: 'perform assigned duty', worldEventResponse: 'monitor local alerts', memoryBias: 0 },
+      taskQueue: [], alive: true, health: 100, credits: 150 + npcIndex * 17, lastUpdatedTick: 0,
+      canonCharacterId: null, personality: defaultPersonality(), voiceStyle: defaultVoice(),
+      reactionWeights: { ...DEFAULT_REACTION_WEIGHTS }, wormHead: 'GENESIS',
+    });
+  }
+  // Wire cross-NPC relationships for procedural ones
+  for (let index = CANON_CHARACTERS.length; index < npcs.length; index += 1) {
     const npc = npcs[index] as NpcState;
     const next = npcs[(index + 1) % npcs.length] as NpcState;
-    const previous = npcs[(index + npcs.length - 1) % npcs.length] as NpcState;
+    const prev = npcs[(index + npcs.length - 1) % npcs.length] as NpcState;
     npc.relationships.push(
       { targetId: next.id, kind: 'colleague', trust: 20 + (index % 35), affinity: 15, conflict: 0, lastInteractionTick: 0 },
-      { targetId: previous.id, kind: index % 9 === 0 ? 'rival' : 'friend', trust: index % 9 === 0 ? -15 : 35, affinity: index % 9 === 0 ? -10 : 40, conflict: index % 9 === 0 ? 35 : 0, lastInteractionTick: 0 },
+      { targetId: prev.id, kind: index % 9 === 0 ? 'rival' : 'friend', trust: index % 9 === 0 ? -15 : 35, affinity: index % 9 === 0 ? -10 : 40, conflict: index % 9 === 0 ? 35 : 0, lastInteractionTick: 0 },
     );
   }
   return npcs;
 }
 
 function createAgents(): SovereignAgentState[] {
-  const domains: AgentDomain[] = [
-    'station-command', 'navigation', 'engineering', 'security', 'medical', 'commerce', 'research',
-    'diplomacy', 'logistics', 'exploration', 'emergency-response', 'environmental-control',
+  // Named from canon agent characters; extra domains get generic names
+  const AGENT_SPEC: ReadonlyArray<{
+    domain: AgentDomain; canonId: string; name: string; presence: string;
+    iface: SovereignAgentState['interactionInterface']; fallback: string;
+  }> = [
+    { domain: 'station-command',       canonId: 'agent-001', name: 'BOB',      presence: 'room-command',      iface: 'hologram', fallback: 'Hold all systems at last-known-good state and alert crew.' },
+    { domain: 'navigation',            canonId: 'agent-002', name: 'CARTO',    presence: 'room-navigation',   iface: 'terminal', fallback: 'Lock navigation to current heading and broadcast position.' },
+    { domain: 'engineering',           canonId: 'agent-003', name: 'ENKI',     presence: 'room-engineering',  iface: 'robot',    fallback: 'Safe-mode reactor and isolate fault zone.' },
+    { domain: 'security',              canonId: 'agent-004', name: 'SENTINEL', presence: 'room-security',     iface: 'body',     fallback: 'Lock all restricted access and notify commander.' },
+    { domain: 'medical',               canonId: 'agent-005', name: 'Medical Custodian', presence: 'room-medical', iface: 'hologram', fallback: 'Prepare autodoc and triage queue for human physician.' },
+    { domain: 'commerce',              canonId: 'agent-006', name: 'FLUX',     presence: 'room-market',       iface: 'terminal', fallback: 'Suspend non-essential transactions and preserve ledger.' },
+    { domain: 'research',              canonId: 'agent-007', name: 'NOVA',     presence: 'room-research',     iface: 'terminal', fallback: 'Preserve specimen integrity and pause active experiments.' },
+    { domain: 'diplomacy',             canonId: 'agent-008', name: 'Diplomatic Custodian', presence: 'room-comms', iface: 'hologram', fallback: 'Suspend negotiations and maintain open channel.' },
+    { domain: 'logistics',             canonId: 'agent-009', name: 'FORGE',    presence: 'room-cargo',        iface: 'robot',    fallback: 'Freeze cargo manifests and secure docking arms.' },
+    { domain: 'exploration',           canonId: 'agent-010', name: 'Exploration Custodian', presence: 'ship-player-kestrel', iface: 'ship', fallback: 'Return ship to dock and preserve flight data.' },
+    { domain: 'emergency-response',    canonId: 'agent-011', name: 'Emergency Custodian',  presence: 'room-operations',     iface: 'robot', fallback: 'Activate emergency stations and broadcast all-hands.' },
+    { domain: 'environmental-control', canonId: 'agent-012', name: 'LEDGE',   presence: 'room-life-support', iface: 'terminal', fallback: 'Maintain minimum breathable atmosphere and seal compromised sections.' },
   ];
-  const presences = ['room-command', 'room-navigation', 'room-engineering', 'room-security', 'room-medical', 'room-market', 'room-research', 'room-comms', 'room-cargo', 'ship-player-kestrel', 'room-operations', 'room-life-support'];
-  const interfaces: SovereignAgentState['interactionInterface'][] = ['hologram', 'terminal', 'robot', 'body', 'hologram', 'terminal', 'terminal', 'hologram', 'robot', 'ship', 'robot', 'terminal'];
-  return domains.map((domain, index) => ({
+  return AGENT_SPEC.map((spec, index) => ({
     id: deterministicId('agent', index + 1),
-    name: `${domain.split('-').map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ')} Custodian`,
-    domain,
-    authorityScope: [presences[index] as string, 'station-sovereign-01'],
-    permissions: [`${domain}.observe`, `${domain}.operate`, `${domain}.request`],
+    name: spec.name,
+    domain: spec.domain,
+    authorityScope: [spec.presence, 'station-sovereign-01'],
+    permissions: [`${spec.domain}.observe`, `${spec.domain}.operate`, `${spec.domain}.request`],
     observableState: { heartbeat: true, workload: 0, lastDecisionTick: 0 },
-    deterministicFallback: `Place ${domain} assets in safe state, preserve life, and request human review.`,
+    deterministicFallback: spec.fallback,
     auditLog: [],
-    memory: [{ id: `agent-memory-${index + 1}-charter`, tick: 0, key: 'charter', value: `Bounded authority for ${domain}`, salience: 1 }],
+    memory: [{ id: `agent-memory-${index + 1}-charter`, tick: 0, key: 'charter', value: `Bounded authority for ${spec.domain}`, salience: 1 }],
     taskQueue: [], currentTaskId: null, failureCount: 0, status: 'idle',
-    interactionInterface: interfaces[index] as SovereignAgentState['interactionInterface'], worldPresenceId: presences[index] as string,
+    interactionInterface: spec.iface, worldPresenceId: spec.presence,
   }));
 }
 

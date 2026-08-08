@@ -4,11 +4,14 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": [
-      "ES2022"
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
     ],
     "types": [
       "node",
-      "jest"
+      "jest",
+      "vite/client"
     ],
     "rootDir": ".",
     "outDir": "dist",
@@ -16,16 +19,20 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "sourceMap": true
   },
   "include": [
     "abstract/**/*.ts",
     "pages/**/*.ts",
+    "universe/**/*.ts",
     "main.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "vite.config.ts"
   ],
   "exclude": [
     "dist",
-    "node_modules"
+    "node_modules",
+    "_site"
   ]
 }

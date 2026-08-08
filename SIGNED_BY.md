@@ -90,3 +90,11 @@ Same interfaces. Same chain. Different stones. That is the proof.
 - **WORM seal:** 9c119929-worm-b4
 - **Pages built:** agents/orchestrate.mjs, governance/shadow-orchestrator.pl, tests/tau-governance.test.ts, package.json, package-lock.json, README.md
 - **Notes:** Moved swarm dispatch and status decisions into a Tau Prolog governance rulebook while preserving the typed TypeScript page runtime and WebSocket relay contract. Verified with `npm run verify`, `npm audit`, and the five-tick demo run.
+
+## Stone 8 — Codex GPT-5
+- **Model:** GPT-5 Codex
+- **Built:** 2026-08-01
+- **Tick at signing:** 5
+- **WORM seal:** 9c119929-worm-b4
+- **Pages built:** index.html, orchestrator.html, universe/*, tests/universe.smoke.test.ts, package.json, package-lock.json, tsconfig.json, vite.config.ts, .github/workflows/pages.yml
+- **Notes:** Built the SnapKitty Universe vertical slice with seamless station, EVA, ship, and planetary traversal; persistent population, agent, economy, mission, construction, dialogue, and save systems; and a Three.js browser runtime. Verified with `npm run verify`, `npm audit --omit=dev`, the production preview, and the five-tick WORM demo.

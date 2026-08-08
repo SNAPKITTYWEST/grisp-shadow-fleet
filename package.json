@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "verify": "npm run build && npm test",
     "start": "node dist/main.js",
@@ -17,21 +18,26 @@
     "orchestrate": "node agents/orchestrate.mjs",
     "orchestrate:once": "node agents/orchestrate.mjs --once",
     "resurrect": "node agents/resurrect.mjs --repo",
-    "resurrect:dry": "node agents/resurrect.mjs --dry-run --repo"
+    "resurrect:dry": "node agents/resurrect.mjs --dry-run --repo",
+    "dev": "vite",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.3",
+    "@types/three": "^0.179.0",
     "jest": "^30.0.0",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vite": "^7.1.2"
   },
   "jest": {
     "preset": "ts-jest/presets/default-esm",
     "testEnvironment": "node",
     "testMatch": [
-      "<rootDir>/tests/**/*.test.ts"
+      "<rootDir>/tests/**/*.test.ts",
+      "<rootDir>/universe/**/*.test.ts"
     ],
     "testPathIgnorePatterns": [
       "<rootDir>/dist/",
@@ -45,6 +51,8 @@
     }
   },
   "dependencies": {
-    "tau-prolog": "^0.3.4"
+    "lucide": "^0.468.0",
+    "tau-prolog": "^0.3.4",
+    "three": "^0.179.1"
   }
 }

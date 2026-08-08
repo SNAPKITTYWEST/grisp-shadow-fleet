@@ -1,307 +1,190 @@
-```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-░                                                                             ░
-░    ██████╗ ██████╗ ██╗███████╗██████╗                                      ░
-░   ██╔════╝ ██╔══██╗██║██╔════╝██╔══██╗                                     ░
-░   ██║  ███╗██████╔╝██║███████╗██████╔╝                                     ░
-░   ██║   ██║██╔══██╗██║╚════██║██╔═══╝                                      ░
-░   ╚██████╔╝██║  ██║██║███████║██║                                          ░
-░    ╚═════╝ ╚═╝  ╚═╝╚═╝╚══════╝╚═╝                                          ░
-░                                                                             ░
-░   ███████╗██╗  ██╗ █████╗ ██████╗  ██████╗ ██╗    ██╗                      ░
-░   ██╔════╝██║  ██║██╔══██╗██╔══██╗██╔═══██╗██║    ██║                      ░
-░   ███████╗███████║███████║██║  ██║██║   ██║██║ █╗ ██║                      ░
-░   ╚════██║██╔══██║██╔══██║██║  ██║██║   ██║██║███╗██║                      ░
-░   ███████║██║  ██║██║  ██║██████╔╝╚██████╔╝╚███╔███╔╝                      ░
-░   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝  ╚══╝╚══╝                      ░
-░                                                                             ░
-░   ███████╗██╗     ███████╗███████╗████████╗                                 ░
-░   ██╔════╝██║     ██╔════╝██╔════╝╚══██╔══╝                                 ░
-░   █████╗  ██║     █████╗  █████╗     ██║                                    ░
-░   ██╔══╝  ██║     ██╔══╝  ██╔══╝     ██║                                    ░
-░   ██║     ███████╗███████╗███████╗   ██║                                    ░
-░   ╚═╝     ╚══════╝╚══════╝╚══════╝   ╚═╝                                    ░
-░                                                                             ░
-░              We don't encrypt. We resurrect.                                ░
-░                                                                             ░
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-```
+# SnapKitty Universe — Sovereign Station
 
-<p align="center">
-  <img src="https://img.shields.io/badge/runtime-Node.js-339933?style=flat-square"/>
-  <img src="https://img.shields.io/badge/logic-Tau_Prolog-blueviolet?style=flat-square"/>
-  <img src="https://img.shields.io/badge/chain-WORM_sealed-black?style=flat-square"/>
-  <img src="https://img.shields.io/badge/agents-9_swarm-red?style=flat-square"/>
-  <img src="https://img.shields.io/badge/live-GitHub_Pages-blue?style=flat-square"/>
-</p>
+**A persistent 3D life simulation running live in your browser.**
+Walk a sovereign orbital station. Talk to 50 canon characters. Trade. Fly. Go EVA. Watch two armored cat-robots patrol the corridors and interact with the station's AI agents.
+
+**Live →** [snapkittywest.github.io/grisp-shadow-fleet](https://snapkittywest.github.io/grisp-shadow-fleet/)
 
 ---
 
-## What Is This?
+## What You're Looking At
 
-An **autonomous agent swarm** that:
+You spawn inside **Sovereign Station** — a rotating orbital platform with 30 rooms across 6 decks, a functional economy, 50 named NPCs with real biographies, 12 sovereign AI agents, a player-owned ship, an EVA hull walk, and a planetary moon you can land on.
 
-1. Crawls GitHub for dead/abandoned repositories
-2. Analyzes what broke and what can be salvaged
-3. Resurrects them with automated Pull Requests
-4. Seals every action to an append-only WORM chain
-
-Every agent action is cryptographically immutable. The swarm makes decisions via Prolog logic (not probability). The chain is model-invariant — three different AI models seal the same ledger.
+Everything is deterministic and WORM-sealed. Every NPC remembers what you do. Every trade, interaction, and social event gets appended to a SHA-256 chain.
 
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                                                                          ║
-║   WHAT MOST AGENT FRAMEWORKS DO          WHAT THIS DOES                  ║
-║   ──────────────────────────────         ──────────────────              ║
-║                                                                          ║
-║   Send prompts, get text back            Every action → WORM chain       ║
-║   No audit trail                         Full cryptographic audit trail  ║
-║   One model, one perspective             Multi-model consensus           ║
-║   Runs once when you tell it             Autonomous phase loop           ║
-║   "I'll help you write code"             "I resurrect dead repos"        ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
+Station interior → Airlock → EVA hull walk → Board ship → Undock → Fly → Land on Nacre Moon
 ```
 
 ---
 
-## How It Works
+## The Characters
 
-```
-  ┌───────────────────────────────────────────────────────────────────┐
-  │                      SHADOW ORCHESTRATOR                           │
-  │                                                                   │
-  │  governance/shadow-orchestrator.pl  (Tau Prolog decision engine)  │
-  │                                                                   │
-  │  Phases:   SLEEP → RISE → ROAM → ICP → HUNT → SEAL              │
-  │  Loop:     Autonomous, continuous, self-scheduling                │
-  │  Logic:    Deterministic Prolog rules, not probabilistic LLM      │
-  └────────────────────────────────┬──────────────────────────────────┘
-                                   │
-              ┌────────────────────┼────────────────────┐
-              │                    │                    │
-              ▼                    ▼                    ▼
-  ┌───────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-  │    AHMAD-BOT      │  │     EDUALC      │  │      BOB        │
-  │    (Red Hat)      │  │    (Blue Hat)   │  │   (Infinity)    │
-  │                   │  │                 │  │                 │
-  │  Gravity Crawl:   │  │  Restoration:   │  │  Reasoning:     │
-  │  - Find dead repos│  │  - Propose fix  │  │  - Evaluate     │
-  │  - Map decay      │  │  - Generate PR  │  │  - Arbitrate    │
-  │  - Score viability│  │  - Test locally │  │  - Seal to WORM │
-  └───────────────────┘  └─────────────────┘  └─────────────────┘
-              │                    │                    │
-              └────────────────────┼────────────────────┘
-                                   ▼
-                    ┌─────────────────────────────┐
-                    │         WORM CHAIN           │
-                    │                             │
-                    │  append-only · immutable    │
-                    │  SHA-256 linked entries     │
-                    │  model-invariant proofs     │
-                    │  worm-ledger.json           │
-                    └─────────────────────────────┘
-```
+### SnapKitty Users — Kitty-M and Kitty-C
+
+Two fully-rigged armored cat-robot player characters patrol the station and interact with agents:
+
+| | **Kitty-M** | **Kitty-C** |
+|---|---|---|
+| Fur | Orange tabby | Tuxedo black/white |
+| Armor | Magenta/pink with chrome plates | Cyan/blue with chrome plates |
+| Visor | Pink glow, purple eyes | Blue glow, green eyes |
+| Helmet | Gray band, ear cups, camera | Gray band, ear cups, camera |
+| Tail | Orange/white striped, 4-segment | Black/white striped, 4-segment |
+
+Both characters animate across three states:
+- **Patrol** — walk cycle with arm swing, leg swing, torso bob; navigate waypoints through the station
+- **Interact** — stop at an agent, face them, nod head, gesture arm, visor pulses bright
+- **Idle** — breathing bob, gentle arm sway, tail waving
+
+Walk up to either character to open a dialogue channel.
+
+### Canon NPCs — 50 named characters from the SnapKitty universe
+
+Every NPC is seeded from the canon character roster with their real biography, personality, schedule, memories, and reaction weights. A few:
+
+| Name | Role | Personality |
+|---|---|---|
+| **Asha Vey** | Civic architect | Patient, systems-minded — built the first pressure-safe commons |
+| **Cael Rook** | Errant explorer | Fearless, irreverent — searching for a lost caravan beyond Nacre |
+| **Pell Noor** | Memory archivist | Meticulous synthetic — fiercely protective of the audit chain |
+| **Maren Sollis** | Station commander | Decisive, disciplined — kept the station alive through a pressure cascade |
+| **Vera Mylaw** | Arbitration chair | Impartial judge — issued the first binding salvage ruling |
+| **Ora Tannis** | Chief physician | Compassionate, overextended — triaged 22 crew in four hours |
+
+NPCs run a layered behavior system: needs decay by personality (OCEAN traits), schedules update by world minute, social events seal into a per-character WORM chain.
+
+### Sovereign Agents — 12 named AI custodians
+
+| Agent | Domain | Presence |
+|---|---|---|
+| **BOB** | Station command / logistics | Command room hologram |
+| **CARTO** | Navigation / route atlas | Navigation terminal |
+| **ENKI** | Engineering / reactor | Engineering robot |
+| **SENTINEL** | Security / investigation | Security body |
+| **FORGE** | Fabrication / manufacturing | Cargo robot |
+| **FLUX** | Market / trade routes | Market terminal |
+| **NOVA** | Astronomy / anomaly tracking | Research terminal |
+| **LEDGE** | History / event replay | Server archive terminal |
+
+Every agent operates within bounded authority. Tasks outside their permission scope are rejected and audited. Fallback behaviors activate on failure.
 
 ---
 
-## Quick Start
+## What You Can Do
+
+| Action | How |
+|---|---|
+| Walk the station | WASD + mouse look |
+| Open doors | Walk up, press E |
+| Ride the elevator | Enter, select deck |
+| Talk to an NPC or agent | Walk close, press E |
+| Buy/sell commodities | Find Aurora Exchange, press E |
+| Accept a mission | Mission bureau terminal |
+| Equip EVA suit | EVA Sacristy locker |
+| Cycle the airlock | Cyan Airlock A-01 panel |
+| Walk the hull | After airlock depressurizes |
+| Board your ship | Hangar, walk up to SKV Meridian |
+| Undock and fly | Start engines, take control, undock |
+| Land on Nacre Moon | Fly toward the moon, press land |
+| Enter the settlement | Walk to Nyx operations habitat |
+| Build a workshop | Deliver materials, work the project |
+| Developer console | Press `` ` `` — `help` lists commands |
+
+---
+
+## The World
+
+### Sovereign Station
+30 functional rooms across 6 decks — command, navigation, reactor, engineering, medical, market, research, fabrication, hangar, hydroponics, quarters, observation, and more. Every room has a named interaction point, environmental state, and occupant tracking.
+
+### The Economy
+Live market with 8 commodities (water, nutrients, oxygen, alloy, medicine, fuel, circuits, artifacts). Prices move on trade. Production and consumption tick every game hour. Two markets: **Aurora Exchange** (station) and **Nacre Cooperative** (moon).
+
+### Nacre Moon
+Land on the Glass Plain, walk to the Nyx Meridian settlement, contact the operations habitat, survey wildlife habitats. The silica bloom opens its reflective fronds at stellar transit.
+
+### Orbital Space
+Traffic vessels on procedural routes, asteroid field, star systems, jump connections to distant systems. Everything streams in/out by proximity.
+
+---
+
+## Technology
+
+| Layer | What it does |
+|---|---|
+| **Three.js** | Full 3D renderer — station geometry, orbital space, planetary region, animated characters |
+| **UniverseCore** | Deterministic simulation engine — 13 subsystems, fixed-step tick loop, save/load with checksum |
+| **WORM chain** | SHA-256 append-only event ledger — every NPC social event, trade, mission, and construction action is sealed |
+| **Canon system** | 50 characters, 16 locations, 50 quests, 10 species, 24 equipment items — loaded from versioned JSON |
+| **Tau Prolog gate** | Swarm dispatch governance — agent tasks consult Prolog rules before execution |
+| **PopulationSystem** | OCEAN personality model — each character's need decay rate is tuned to their traits |
+| **AgentSystem** | Bounded authority enforcement — permissions, audit log, deterministic fallback |
+
+---
+
+## Run Locally
 
 ```bash
 git clone https://github.com/SNAPKITTYWEST/grisp-shadow-fleet
 cd grisp-shadow-fleet
 npm install
+npm run dev
 ```
 
-### Run the orchestrator
+Open **http://localhost:5173**
 
 ```bash
-# Continuous autonomous loop
-node agents/orchestrate.mjs
-
-# Single pass (useful for testing)
-node agents/orchestrate.mjs --once
-```
-
-### Resurrect a dead repo
-
-```bash
-# Dry run — analyze without creating PR
-node agents/resurrect.mjs --repo https://github.com/owner/dead-repo --dry-run
-
-# Live — creates resurrection PR with WORM receipt
-node agents/resurrect.mjs --repo https://github.com/owner/dead-repo
-```
-
-### View the live stage
-
-Open [snapkittywest.github.io/grisp-shadow-fleet](https://snapkittywest.github.io/grisp-shadow-fleet/) — real-time visualization of the swarm's 6 phases with WebSocket telemetry.
-
----
-
-## The Agent Swarm
-
-```
-╔═══════════════╦═══════╦══════════════════════════════════════════════════╗
-║  AGENT         ║  HAT  ║  ROLE                                           ║
-╠═══════════════╬═══════╬══════════════════════════════════════════════════╣
-║  AHMAD-BOT    ║  Red  ║  Gravity crawl — finds dead repos, maps decay   ║
-║  EDUALC       ║  Blue ║  Restoration — proposes fixes, generates PRs    ║
-║  BOB          ║   ♾   ║  Reasoning engine — arbitrates, seals WORM      ║
-║  METRIC-STREAM║   —   ║  Audits every line — 0 probabilistic errors     ║
-║  BIFROST      ║   —   ║  Translates: Rust, Lean4, Haskell, APL, Prolog  ║
-║  WATERMARK    ║   —   ║  Ed25519 sovereign fingerprint on artifacts     ║
-║  ICP-VERIFIER ║   —   ║  Halts loop if canister state drifts            ║
-║  ERRANT       ║Purple ║  GitLab shadow node — Prolog + emoji protocol   ║
-║  LOC          ║ Black ║  Rust kinetic — anchored in graveyard, static   ║
-╚═══════════════╩═══════╩══════════════════════════════════════════════════╝
+npm test        # 24 tests — simulation, airlock, ship, NPC, economy, agents, construction
+npm run build   # production bundle → _site/
 ```
 
 ---
 
-## The WORM Chain
-
-Every action the swarm takes is sealed to an append-only ledger. The chain is:
-
-- **Append-only** — entries can never be modified or deleted
-- **SHA-256 linked** — each entry hashes the previous
-- **Model-invariant** — multiple AI models independently seal the same chain
+## Architecture
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  SEAL  STONE 0   claude-sonnet          b1ada656-worm-1e    ║
-║  SEAL  STONE 1   gpt-5-codex            9c119929-worm-b4    ║
-║  SEAL  STONE 2   claude-verification    48da736fdb1c63e1    ║
-║                                                              ║
-║  THREE MODELS  ·  SAME CHAIN  ·  MODEL-INVARIANT PROOF      ║
-╚══════════════════════════════════════════════════════════════╝
+universe/
+├── app.ts              — entry point, wires renderer ↔ simulation ↔ HUD
+├── UniverseCore.ts     — authoritative world state + system coordination
+├── world-data.ts       — canon character seeding, world generation
+├── GameRenderer.ts     — Three.js scenes, SnapKitty cat characters, animation
+├── PopulationSystem.ts — NPC needs, WORM social sealing, OCEAN trait decay
+├── AgentSystem.ts      — bounded authority, audit log, fallback
+├── EconomySystem.ts    — live markets, price dynamics, trade routes
+├── MissionSystem.ts    — state-driven missions, trigger conditions
+├── DialogueSystem.ts   — trust-gated conversation, NPC memory
+├── ShipSystem.ts       — flight, docking, landing, jump
+├── InteriorSystem.ts   — doors, airlock interlocks, elevator, EVA
+└── types.ts            — full type definitions for all entities
 ```
-
-The chain lives in `worm-ledger.json`. Verification:
-
-```bash
-# Verify chain integrity
-node agents/worm-chain.mjs verify
-
-# View latest entries
-node agents/worm-chain.mjs tail 10
-```
-
----
-
-## The 6 Phases
-
-The orchestrator loops through 6 phases autonomously:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   SLEEP ──→ RISE ──→ ROAM ──→ ICP ──→ HUNT ──→ SEAL       │
-│     │                                              │        │
-│     └──────────────────────────────────────────────┘        │
-│                    (continuous loop)                         │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   SLEEP    Idle. Waiting for schedule trigger.              │
-│   RISE     Agents boot. Check health. Load state.          │
-│   ROAM     AHMAD-BOT crawls GitHub. Maps dead repos.       │
-│   ICP      ICP-VERIFIER checks canister state integrity.   │
-│   HUNT     EDUALC proposes repairs. BOB evaluates.         │
-│   SEAL     Results sealed to WORM chain. PRs created.      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Resurrection Receipt
-
-When a repo is resurrected, the WORM chain records:
-
-```
-╔══════════════════════════════════════════════════════════════════╗
-║  RESURRECTION RECEIPT                                            ║
-║                                                                  ║
-║  target:    kiaan109/cipher-workflow                             ║
-║  lines:     39,793                                               ║
-║  files:     344                                                  ║
-║  errors:    0                                                    ║
-║  seal:      d31b8dc0-worm-f4                                     ║
-║  status:    RESURRECTED                                          ║
-║  agents:    AHMAD-BOT → EDUALC → BOB                            ║
-║  timestamp: 2026-06-15T03:42:11Z                                ║
-╚══════════════════════════════════════════════════════════════════╝
-```
-
-The receipt is embedded in the Pull Request body. The chain remembers.
-
----
-
-## Project Structure
-
-```
-grisp-shadow-fleet/
-├── agents/
-│   ├── orchestrate.mjs         Main loop — phase scheduling
-│   ├── resurrect.mjs           RANSOM.WORM — point at repo, fire
-│   ├── worm-chain.mjs          WORM ledger operations (append/verify/tail)
-│   ├── metric-stream.mjs       Line-level auditing agent
-│   ├── bifrost-translator.mjs  Multi-language translation
-│   ├── watermark.mjs           Ed25519 sovereign fingerprinting
-│   └── icp-verifier.mjs        Internet Computer canister drift check
-├── governance/
-│   └── shadow-orchestrator.pl  Prolog decision engine (Tau Prolog)
-├── pages/                      GitHub Pages live world stage
-├── public/                     Static assets for live visualization
-├── tests/                      Agent test suite
-├── lineage/                    Historical chain records
-├── abstract/                   Mission documentation
-├── worm-ledger.json            The WORM chain itself
-├── WATERMARK.MANIFEST.json     Ed25519 manifest of all sealed artifacts
-├── CONSTITUTION.md             Agent behavioral rules
-├── TRUST_DEED.md               Governance structure
-├── COLD_BOOT.md                Recovery from zero state
-├── SIGNED_BY.md                Cryptographic attestation
-├── main.ts                     TypeScript entry point
-├── package.json                Dependencies (minimal)
-└── index.html                  Live stage entry
-```
-
----
-
-## Requirements
-
-- Node.js 18+
-- `npm install` (minimal deps — tau-prolog for logic, tweetnacl for Ed25519)
-- GitHub token in environment for PR creation (optional for dry-run)
 
 ---
 
 ## Shadow Network
 
-The fleet operates across both GitHub and GitLab:
-
-| Repo | Platform | Purpose |
-|------|----------|---------|
-| **grisp-shadow-fleet** | GitHub | Public stage + live visualization |
-| **shadow-orchestrator** | GitLab | Sovereign ledger mirror |
-| **saint-errant** | GitLab | Prolog shadow agent node |
-| **sovereign-emulator** | GitHub | Runtime emulation environment |
-
-GitHub is the public stage. GitLab is the sovereign ledger. Both sealed. Both WORM-anchored. One chain.
+| Repo | Platform | |
+|---|---|---|
+| [grisp-shadow-fleet](https://github.com/SNAPKITTYWEST/grisp-shadow-fleet) | GitHub | **← you are here** |
+| [shadow-orchestrator](https://gitlab.com/ahmad-parr-dev1-group/shadow-orchestrator) | GitLab | RANSOM.WORM sovereign page |
+| [sovereign-emulator](https://github.com/SNAPKITTYWEST/sovereign-emulator) | GitHub | [Live](https://snapkittywest.github.io/sovereign-emulator/) |
+| [sov-kernel-monster](https://github.com/SNAPKITTYWEST/sov-kernel-monster) | GitHub | Godot + canon bridge |
 
 ---
 
-## Live Demo
+## License
 
-**[snapkittywest.github.io/grisp-shadow-fleet](https://snapkittywest.github.io/grisp-shadow-fleet/)**
+Source-visible. Not open source.
 
-6 phases. Autonomous. WebSocket telemetry. Demo mode fallback when offline.
+- **License:** Sovereign Source License v3.0
+- **Commercial use:** prohibited without written license
+- **AI/model training:** prohibited without written license
+- **Studying / judging:** allowed
+- **Contact:** `jessicalw34@gmail.com` · subject `SK-LICENSE-REQUEST`
 
 ---
 
-<p align="center"><b>Built by Ahmad Ali Parr + SnapKitty Collective</b></p>
-<p align="center"><i>Band of Agents Hackathon — lablab.ai — June 2026</i></p>
+*Built by Ahmad Ali Parr · SnapKitty Collective · Bel Esprit D'Accord Irrevocable Trust*
 
-![](https://sovereign-analytics.snapkittywest.workers.dev/canary/grisp-shadow-fleet)
+![Canary](https://sovereign-analytics.snapkittywest.workers.dev/canary/grisp-shadow-fleet)
